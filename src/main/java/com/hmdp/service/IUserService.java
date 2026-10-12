@@ -5,7 +5,6 @@ import com.hmdp.dto.LoginFormDTO;
 import com.hmdp.dto.Result;
 import com.hmdp.entity.User;
 
-import javax.mail.MessagingException;
 import javax.servlet.http.HttpSession;
 
 /**
