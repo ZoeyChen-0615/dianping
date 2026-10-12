@@ -1,13 +1,19 @@
-# setup-windows.ps1 —— 黑马点评 Windows 一键环境安装脚本（幂等，可重复运行）
+# setup-windows.ps1 — one-click environment setup for the Dianping project on Windows.
+# Idempotent: safe to re-run; completed steps are skipped automatically.
 #
-# 用法：
-#   1. 右键 PowerShell →「以管理员身份运行」
+# Usage:
+#   1. Right-click PowerShell -> "Run as administrator"
 #   2. Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-#   3. cd 到本仓库根目录，执行 .\setup-windows.ps1
+#   3. cd to this repo root, then run: .\setup-windows.ps1
 #
-# 做什么：winget 安装 Temurin JDK8 / Git / Maven / MySQL8 / Erlang / RabbitMQ，
-# 建 hmdp 库并导入数据，同步 application.yaml 的数据库密码，最后新开窗口启动后端。
-# 注意：Redis 官方没有 Windows 版，脚本只做连通性检查，装法见第 4 步提示。
+# What it does:
+#   - winget: Temurin JDK 8, Git, MySQL 8.0 (pinned), Erlang/OTP 28 (pinned)
+#   - direct download: Apache Maven 3.9.9, RabbitMQ 4.1.8 (not on winget)
+#   - creates the hmdp database and imports seed data
+#   - syncs the MySQL root password into src/main/resources/application.yaml
+#   - launches the backend in a new PowerShell window (mvn spring-boot:run)
+# Note: Redis has no official Windows build. The script only checks port 6379;
+# see step 7 for how to install it (Memurai / WSL2 / Docker).
 
 $ErrorActionPreference = "Stop"
 
@@ -18,38 +24,95 @@ function Test-Port($computer, $port) {
     catch { return $false }
 }
 
-# 0. 管理员 + winget 检查
-$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
-    ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-if (-not $isAdmin) { Write-Host "请以管理员身份运行 PowerShell 后再执行本脚本。" -ForegroundColor Red; exit 1 }
-if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
-    Write-Host "未找到 winget（需要 Win10 1809+/Win11 的「应用安装程序」），请先安装。" -ForegroundColor Red; exit 1
+function Add-MachinePath($dir) {
+    $mp = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
+    if ($mp -split ";" -notcontains $dir) {
+        [System.Environment]::SetEnvironmentVariable("Path", "$mp;$dir", "Machine")
+        Write-Host "√ added to Machine PATH: $dir" -ForegroundColor Green
+    }
+    if ($env:Path -split ";" -notcontains $dir) { $env:Path += ";$dir" }
 }
 
-function Ensure-Winget($id, $name, $fallbackUrl) {
+# 0. Prechecks: admin + winget
+$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
+    ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+if (-not $isAdmin) { Write-Host "Please re-run PowerShell as Administrator, then run this script again." -ForegroundColor Red; exit 1 }
+if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
+    Write-Host "winget not found (needs the 'App Installer' from the Microsoft Store on Win10 1809+/Win11)." -ForegroundColor Red; exit 1
+}
+
+function Ensure-Winget($id, $name, $version, $fallbackUrl) {
     $found = winget list --id $id -e 2>$null | Select-String -SimpleMatch $id -Quiet
-    if ($found) { Write-Host "√ $name 已安装，跳过" -ForegroundColor Green; return }
-    Write-Host "→ 正在安装 $name ..."
-    winget install --id $id -e --silent --accept-package-agreements --accept-source-agreements
+    if ($found) { Write-Host "√ $name already installed, skipping" -ForegroundColor Green; return }
+    Write-Host "→ installing $name ..."
+    $verArg = @(); if ($version) { $verArg = @("--version", $version) }
+    winget install --id $id -e --silent --accept-package-agreements --accept-source-agreements @verArg
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "× $name 自动安装失败，请手动安装：$fallbackUrl" -ForegroundColor Yellow
+        Write-Host "× $name auto-install failed, please install manually: $fallbackUrl" -ForegroundColor Yellow
     }
 }
 
-Write-Step "1/6 安装基础软件（winget）"
-Ensure-Winget "EclipseAdoptium.Temurin.8.JDK" "Temurin JDK 8" "https://adoptium.net/temurin/releases/?version=8"
-Ensure-Winget "Git.Git" "Git" "https://git-scm.com/download/win"
-Ensure-Winget "Apache.Maven" "Maven" "https://maven.apache.org/download.cgi"
-Ensure-Winget "Oracle.MySQL.8.0" "MySQL 8.0" "https://dev.mysql.com/downloads/installer/"
-Ensure-Winget "Erlang.Erlang" "Erlang/OTP（RabbitMQ 依赖）" "https://www.erlang.org/downloads"
-Ensure-Winget "RabbitMQ.RabbitMQ" "RabbitMQ Server" "https://www.rabbitmq.com/install-windows.html"
-Write-Host "注：MySQL 安装过程中如弹出配置向导，请设置好 root 密码并记住，下面会用到。" -ForegroundColor Yellow
+Write-Step "1/8 Installing base software (winget)"
+Ensure-Winget "EclipseAdoptium.Temurin.8.JDK" "Temurin JDK 8" "" "https://adoptium.net/temurin/releases/?version=8"
+Ensure-Winget "Git.Git" "Git" "" "https://git-scm.com/download/win"
+# Pin MySQL 8.0.x: the script looks for service MYSQL80 and path "MySQL Server 8.0".
+# (Oracle.MySQL defaults to 8.4 on winget; old 8.0.x versions stay installable.)
+Ensure-Winget "Oracle.MySQL" "MySQL 8.0" "8.0.43" "https://dev.mysql.com/downloads/installer/"
+# Pin Erlang 28.x: RabbitMQ 4.1 supports Erlang 26-28 (newer OTP may refuse to boot it).
+Ensure-Winget "Erlang.ErlangOTP" "Erlang/OTP 28" "28.5.0.6" "https://www.erlang.org/downloads"
 
-# 刷新当前会话的 PATH（winget 刚装好的软件）
+Write-Step "2/8 Installing Maven 3.9.9 (direct download; not on winget)"
+$mvnDir = "C:\Program Files\Apache\Maven"
+if (-not (Test-Path "$mvnDir\bin\mvn.cmd")) {
+    $mvnVer = "3.9.9"
+    $zip = "$env:TEMP\apache-maven-$mvnVer-bin.zip"
+    Write-Host "→ downloading Apache Maven $mvnVer ..."
+    Invoke-WebRequest -Uri "https://archive.apache.org/dist/maven/maven-3/$mvnVer/binaries/apache-maven-$mvnVer-bin.zip" -OutFile $zip
+    $tmp = "$env:TEMP\mvn-extract"; if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
+    Expand-Archive -Path $zip -DestinationPath $tmp -Force
+    New-Item -ItemType Directory -Force -Path $mvnDir | Out-Null
+    Copy-Item "$tmp\apache-maven-$mvnVer\*" $mvnDir -Recurse -Force
+    Remove-Item $tmp -Recurse -Force; Remove-Item $zip -Force
+    Write-Host "√ Maven installed to $mvnDir" -ForegroundColor Green
+} else {
+    Write-Host "√ Maven already installed, skipping" -ForegroundColor Green
+}
+Add-MachinePath "$mvnDir\bin"
+
+Write-Step "3/8 Installing RabbitMQ 4.1.8 (direct download; not on winget)"
+$rmqVer = "4.1.8"
+$rmqDir = "C:\Program Files\RabbitMQ Server\rabbitmq_server-$rmqVer"
+$rmqSvc = Get-Service -Name "RabbitMQ" -ErrorAction SilentlyContinue
+if (-not (Test-Path "$rmqDir\sbin\rabbitmq-service.bat")) {
+    $zip = "$env:TEMP\rabbitmq-server-windows-$rmqVer.zip"
+    Write-Host "→ downloading RabbitMQ $rmqVer ..."
+    Invoke-WebRequest -Uri "https://github.com/rabbitmq/rabbitmq-server/releases/download/v$rmqVer/rabbitmq-server-windows-$rmqVer.zip" -OutFile $zip
+    $dest = "C:\Program Files\RabbitMQ Server"
+    New-Item -ItemType Directory -Force -Path $dest | Out-Null
+    Expand-Archive -Path $zip -DestinationPath $dest -Force
+    Remove-Item $zip -Force
+    Write-Host "√ RabbitMQ extracted to $rmqDir" -ForegroundColor Green
+} else {
+    Write-Host "√ RabbitMQ already downloaded, skipping" -ForegroundColor Green
+}
+# rabbitmq-service.bat needs ERLANG_HOME; refresh it from the Machine env (set by the Erlang installer)
+$env:ERLANG_HOME = [System.Environment]::GetEnvironmentVariable("ERLANG_HOME", "Machine")
+if (-not $rmqSvc) {
+    Write-Host "→ installing RabbitMQ Windows service ..."
+    & "$rmqDir\sbin\rabbitmq-service.bat" install
+    Start-Sleep 3
+    $rmqSvc = Get-Service -Name "RabbitMQ" -ErrorAction SilentlyContinue
+}
+if ($rmqSvc) {
+    if ($rmqSvc.Status -ne "Running") { Start-Service $rmqSvc; Start-Sleep 5 }
+    Write-Host "√ RabbitMQ service running (guest/guest, AMQP port 5672)" -ForegroundColor Green
+} else {
+    Write-Host "× RabbitMQ service not found. Install manually: https://www.rabbitmq.com/install-windows.html (needs Erlang first)." -ForegroundColor Yellow
+}
+
+Write-Step "4/8 Refreshing PATH and JAVA_HOME for this session"
 $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" +
             [System.Environment]::GetEnvironmentVariable("Path", "User")
-
-# JAVA_HOME 指向 Temurin 8
 $jdk8 = Get-ChildItem "C:\Program Files\Eclipse Adoptium" -Directory -ErrorAction SilentlyContinue |
        Where-Object { $_.Name -like "jdk-8*" } | Sort-Object Name -Descending | Select-Object -First 1
 if ($jdk8) {
@@ -57,64 +120,74 @@ if ($jdk8) {
     [System.Environment]::SetEnvironmentVariable("JAVA_HOME", $jdk8.FullName, "Machine")
     Write-Host "√ JAVA_HOME = $($jdk8.FullName)" -ForegroundColor Green
 } else {
-    Write-Host "× 未找到 Temurin JDK 8，请手动安装并设置 JAVA_HOME 后重跑。" -ForegroundColor Yellow
+    Write-Host "× Temurin JDK 8 not found, install it manually and set JAVA_HOME, then re-run." -ForegroundColor Yellow
 }
 
-Write-Step "2/6 MySQL：建库并导入数据"
-$mysqlSvc = Get-Service -Name "MYSQL80" -ErrorAction SilentlyContinue
+Write-Step "5/8 MySQL: create database and import seed data"
+$mysqlSvc = Get-Service -Name "MYSQL8*" | Select-Object -First 1
 if ($mysqlSvc -and $mysqlSvc.Status -ne "Running") { Start-Service $mysqlSvc; Start-Sleep 3 }
 $mysqlExe = (Get-Command mysql -ErrorAction SilentlyContinue).Source
-if (-not $mysqlExe) { $mysqlExe = "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" }
-if (-not (Test-Path $mysqlExe)) { Write-Host "× 找不到 mysql，请确认 MySQL 已安装。" -ForegroundColor Red; exit 1 }
-
-$rootPwd = Read-Host "请输入 MySQL root 密码（安装 MySQL 时设置的；若设的就是 123456 直接回车）"
-if ([string]::IsNullOrWhiteSpace($rootPwd)) { $rootPwd = "123456" }
-$env:MYSQL_PWD = $rootPwd
+if (-not $mysqlExe) {
+    $mysqlExe = Get-ChildItem "C:\Program Files\MySQL\MySQL Server *\bin\mysql.exe" -ErrorAction SilentlyContinue |
+                Select-Object -First 1 -ExpandProperty FullName
+}
+if (-not $mysqlExe -or -not (Test-Path $mysqlExe)) {
+    Write-Host "× mysql.exe not found. If the MySQL Installer only installed the manager GUI, open 'MySQL Installer' from the Start Menu, add MySQL Server 8.0, then re-run this script." -ForegroundColor Red
+    exit 1
+}
+# A fresh silent install usually leaves root passwordless; probe that first, then ask.
+$env:MYSQL_PWD = ""
 & $mysqlExe -u root -e "SELECT 1" 2>$null
-if ($LASTEXITCODE -ne 0) { Write-Host "× root 密码不对或 MySQL 未启动，请检查后重跑。" -ForegroundColor Red; exit 1 }
+if ($LASTEXITCODE -eq 0) {
+    $rootPwd = ""
+    Write-Host "√ MySQL root has no password (fresh install)" -ForegroundColor Green
+} else {
+    $rootPwd = Read-Host "MySQL root password [default 123456, press Enter to accept]"
+    if ([string]::IsNullOrWhiteSpace($rootPwd)) { $rootPwd = "123456" }
+    $env:MYSQL_PWD = $rootPwd
+    & $mysqlExe -u root -e "SELECT 1" 2>$null
+    if ($LASTEXITCODE -ne 0) { Write-Host "× wrong root password or MySQL not started, fix it and re-run." -ForegroundColor Red; exit 1 }
+}
 & $mysqlExe -u root -e "CREATE DATABASE IF NOT EXISTS hmdp CHARACTER SET utf8mb4;"
 $sqlFile = Join-Path $PSScriptRoot "src\main\resources\db\hmdp.sql"
 $tables = (& $mysqlExe -u root -N -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='hmdp';").Trim()
 if ($tables -eq "0") {
     Get-Content $sqlFile -Raw -Encoding UTF8 | & $mysqlExe -u root --default-character-set=utf8mb4 hmdp
-    Write-Host "√ hmdp.sql 导入完成" -ForegroundColor Green
+    Write-Host "√ hmdp.sql imported" -ForegroundColor Green
 } else {
-    Write-Host "√ hmdp 库已有 $tables 张表，跳过导入" -ForegroundColor Green
+    Write-Host "√ hmdp already has $tables tables, skipping import" -ForegroundColor Green
 }
-if ($rootPwd -ne "123456") {
-    $yaml = Join-Path $PSScriptRoot "src\main\resources\application.yaml"
-    (Get-Content $yaml -Raw).Replace("password: 123456", "password: $rootPwd") |
-        Set-Content $yaml -NoNewline -Encoding UTF8
-    Write-Host "√ application.yaml 数据库密码已同步为你输入的密码" -ForegroundColor Green
-}
+$yaml = Join-Path $PSScriptRoot "src\main\resources\application.yaml"
+(Get-Content $yaml -Raw).Replace("password: 123456", "password: $rootPwd") |
+    Set-Content $yaml -NoNewline -Encoding UTF8
+Write-Host "√ application.yaml DB password synced" -ForegroundColor Green
 
-Write-Step "3/6 RabbitMQ"
+Write-Step "6/8 RabbitMQ check"
 $rmqSvc = Get-Service -Name "RabbitMQ" -ErrorAction SilentlyContinue
-if ($rmqSvc) {
-    if ($rmqSvc.Status -ne "Running") { Start-Service $rmqSvc; Start-Sleep 5 }
-    Write-Host "√ RabbitMQ 服务运行中（guest/guest，端口 5672）" -ForegroundColor Green
+if ($rmqSvc -and $rmqSvc.Status -eq "Running") {
+    Write-Host "√ RabbitMQ running" -ForegroundColor Green
 } else {
-    Write-Host "× 未找到 RabbitMQ Windows 服务，请确认已安装（需先装 Erlang）。" -ForegroundColor Yellow
+    Write-Host "! RabbitMQ not running; the app starts anyway but flash-sale (seckill) will fail until RabbitMQ is up." -ForegroundColor Yellow
 }
 
-Write-Step "4/6 Redis 连通性检查"
+Write-Step "7/8 Redis connectivity check"
 if (Test-Port "127.0.0.1" 6379) {
-    Write-Host "√ Redis 6379 可连" -ForegroundColor Green
+    Write-Host "√ Redis on 6379 reachable" -ForegroundColor Green
 } else {
     Write-Host @"
-× 6379 连不上。Redis 官方没有 Windows 发行版，二选一：
-  A. 安装 Memurai Developer（免费、Redis 兼容、原生 Windows 服务）：https://www.memurai.com
-  B. WSL2 里装 redis，或 Docker：docker run -d -p 6379:6379 redis:7
-装好并确认 6379 能连后，重新运行本脚本（已完成的步骤会自动跳过）。
+× port 6379 unreachable. Redis has no official Windows build; pick one:
+  A. Memurai Developer (free, Redis-compatible, native Windows service): https://www.memurai.com
+  B. WSL2: install redis there, or Docker: docker run -d -p 6379:6379 redis:7
+Once 6379 answers, re-run this script (finished steps are skipped automatically).
 "@ -ForegroundColor Yellow
     exit 1
 }
 
-Write-Step "5/6 启动后端"
+Write-Step "8/8 Starting the backend"
 Set-Location $PSScriptRoot
-Write-Host "新开一个 PowerShell 窗口启动后端（mvn spring-boot:run）..."
+Write-Host "Opening a new PowerShell window to run the backend (mvn spring-boot:run) ..."
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$PSScriptRoot'; mvn spring-boot:run"
 Write-Host ""
-Write-Host "看到 Started HmDianPingApplication 即成功：http://localhost:8081" -ForegroundColor Green
-Write-Host "前端：用浏览器直接打开 frontend\index.html" -ForegroundColor Green
-Write-Host "登录验证码在后端窗口的日志里找「发送登录验证码」。" -ForegroundColor Green
+Write-Host "When you see 'Started HmDianPingApplication', open http://localhost:8081" -ForegroundColor Green
+Write-Host "Frontend: open frontend\index.html directly in your browser (file:// works, CORS is enabled)." -ForegroundColor Green
+Write-Host "The login verification code is printed in the backend window's log: look for 'Login verification code'." -ForegroundColor Green
