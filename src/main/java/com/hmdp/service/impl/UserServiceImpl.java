@@ -22,7 +22,6 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
-import javax.mail.MessagingException;
 import javax.servlet.http.HttpSession;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -47,7 +46,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
     private StringRedisTemplate stringRedisTemplate;
     // Send the verification code
     @Override
-    public Result sendCode(String phone, HttpSession session) throws MessagingException {
+    public Result sendCode(String phone, HttpSession session) {
         // 1. Check the tier-1 rate limit
         Boolean oneLevelLimit = stringRedisTemplate.opsForSet().isMember(ONE_LEVERLIMIT_KEY + phone, "1");
         if (oneLevelLimit != null && oneLevelLimit) {
