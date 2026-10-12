@@ -234,7 +234,7 @@ async function renderMe(){
       <div class="row"><input class="inp" id="email" placeholder="Email (this build logs in with email)"><button class="btn sm" id="codeBtn" style="white-space:nowrap" onclick="sendCode()">Send code</button></div>
       <input class="inp" id="code" placeholder="Verification code" inputmode="numeric">
       <button class="btn" onclick="doLogin()">Log in</button>
-      <div class="hint">If the email never arrives after "Send code", that is expected — the code is in the backend log. On your Mac run:<br><code>grep 'Login verification code' ~/dianping-setup/app.log | tail -1</code><br>to see it.</div></div>`;
+      <div class="hint">If the email never arrives after "Send code", that is expected — the code is printed in the backend log. Search for <code>Login verification code</code> in the terminal where the backend is running (on Mac: <code>grep 'Login verification code' ~/dianping-setup/app.log | tail -1</code>).</div></div>`;
     return;
   }
   v.innerHTML = `<div class="card"><div class="empty">Loading…</div></div>`;
@@ -283,3 +283,4 @@ go('home');
 </script>
 </body>
 </html>
+
