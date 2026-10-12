@@ -1,43 +1,43 @@
-# 黑马点评 dianping
+# Dianping
 
-简化版大众点评 —— Spring Boot 学习项目。功能：商户浏览/详情、优惠券、秒杀下单、探店博客、点赞、签到、邮箱验证码登录。
+A simplified Dianping clone — a Spring Boot learning project. Features: shop browsing/details, vouchers, flash-sale ordering, review blogs, likes, daily check-ins, email-code login.
 
-本仓库是 haopengmai/dianping 的 fork，做了本地可运行改造（见文末）。
+This repo is a fork of haopengmai/dianping, adapted to run locally (see "Changes from upstream" below).
 
-## 目录结构
+## Layout
 
-- `src/` —— 后端（Spring Boot 2.3，端口 8081）
-- `src/main/resources/db/hmdp.sql` —— 数据库初始化脚本
-- `frontend/index.html` —— 前端（单文件手机端页面，直接用浏览器打开）
-- `setup-windows.ps1` —— Windows 一键环境安装脚本（管理员 PowerShell 运行）
-- `start-backend.bat` —— Windows 启动后端（环境装好后双击）
+- `src/` — backend (Spring Boot 2.3, port 8081)
+- `src/main/resources/db/hmdp.sql` — database seed script
+- `frontend/index.html` — frontend (single-file mobile page, open directly in a browser)
+- `setup-windows.ps1` — one-click Windows environment setup (run in admin PowerShell)
+- `start-backend.bat` — start the backend on Windows (double-click once the environment is ready)
 
-## 环境要求
+## Requirements
 
-JDK 8、Maven 3.6+、MySQL 8、Redis 6.2+（需 GEOSEARCH）、RabbitMQ 3.x。
-Windows 注意：Redis 官方无 Windows 版，用 Memurai / WSL2 / Docker。
+JDK 8, Maven 3.6+, MySQL 8, Redis 6.2+ (needs GEOSEARCH), RabbitMQ 3.x.
+Windows note: Redis has no official Windows build — use Memurai / WSL2 / Docker.
 
-## 启动步骤
+## Getting started
 
-**Windows 全新机器**：右键 PowerShell → 以管理员身份运行，执行
-`Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`，
-然后到仓库根目录跑 `.\setup-windows.ps1`（自动装 JDK8/Maven/MySQL/RabbitMQ、建库导数据、起后端；Redis 按脚本提示另装）。
+**Fresh Windows machine**: right-click PowerShell → Run as Administrator, then
+`Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`,
+and run `.\setup-windows.ps1` from the repo root (installs JDK 8 / Maven / MySQL / RabbitMQ, creates and seeds the database, starts the backend; install Redis separately when the script prompts).
 
-**手动步骤**（Mac/Linux，或 Windows 已有环境）：
+**Manual setup** (Mac/Linux, or Windows with an existing environment):
 
-1. `CREATE DATABASE hmdp CHARACTER SET utf8mb4;` 后导入 `src/main/resources/db/hmdp.sql`。
-2. 按本机情况改 `src/main/resources/application.yaml`（MySQL 密码、Redis、RabbitMQ）。
-3. 项目根目录启动：Windows 双击 `start-backend.bat` 或 `mvn spring-boot:run`；Mac/Linux 跑 `mvn spring-boot:run`。看到 `Started HmDianPingApplication` 即成功。
-4. 浏览器直接打开 `frontend/index.html`（后端已配跨域）。
+1. `CREATE DATABASE hmdp CHARACTER SET utf8mb4;`, then import `src/main/resources/db/hmdp.sql`.
+2. Adjust `src/main/resources/application.yaml` to your machine (MySQL password, Redis, RabbitMQ).
+3. Start from the project root: on Windows double-click `start-backend.bat` or run `mvn spring-boot:run`; on Mac/Linux run `mvn spring-boot:run`. `Started HmDianPingApplication` means success.
+4. Open `frontend/index.html` directly in a browser (CORS is already configured).
 
-## 登录说明
+## Login
 
-用邮箱验证码登录。点「发验证码」后邮件发不出去是正常的，验证码在后端日志里：Mac/Linux 用 `grep '发送登录验证码' 日志 | tail -1`，Windows 用 PowerShell `Select-String`。token 30 分钟有效，存浏览器 localStorage。
+Email-code login. If the email never arrives after clicking "send code", that's expected — the code is printed in the backend log: on Mac/Linux `grep 'Login verification code' <log> | tail -1`, on Windows use PowerShell `Select-String`. Tokens last 30 minutes and live in browser localStorage.
 
-## 相对原项目的改动
+## Changes from upstream
 
-邮箱验证码登录；`tb_user.phone` 加宽到 varchar(64)；邮箱正则允许带点；新增 CorsConfig；LoginInterceptor 放行 OPTIONS 预检；`/blog/{id}` 加入登录放行名单；MySQL 驱动 8.0.33；RabbitMQ 改 localhost:5672；tb_seckill_voucher 去零日期默认值；邮件发送失败只记日志；上传目录改跨平台相对路径；删 nginx 目录和重复 Lombok。
+Email-code login; `tb_user.phone` widened to varchar(64); email regex allows dots; new CorsConfig; LoginInterceptor lets OPTIONS preflights through; `/blog/{id}` added to the auth exclusion list; MySQL driver 8.0.33; RabbitMQ on localhost:5672; zero-date defaults removed from tb_seckill_voucher; mail failures only logged; portable relative upload dir; removed the nginx directory and the duplicate Lombok.
 
-## 测试建议
+## Things to try
 
-首页 10 个分类（「美食」9 家、「KTV」5 家，其余种子数据为空属正常）；商户详情→优惠券；探店→博客详情→点赞（需登录）；我的→签到/退出。秒杀需先 `POST /voucher/seckill` 建券再抢购。
+Home shows 10 categories ("Food & Drink" has 9 shops, "KTV" has 5, the rest are empty in the seed data — that's normal); shop details → vouchers; Blogs → blog details → likes (login required); Profile → check-in / logout. For flash sales, first create a voucher via `POST /voucher/seckill`, then grab it.
