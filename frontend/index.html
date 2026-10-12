@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>黑马点评</title>
+<title>Dianping</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   body { background:#f2f2f2; font-family:-apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; color:#333; font-size:14px; }
@@ -66,21 +66,21 @@
 <body>
 <div id="app">
   <header class="top">
-    <div><h1>黑马点评</h1><div class="sub" id="apiLine">localhost:8081</div></div>
-    <button onclick="openSettings()">⚙ 设置</button>
+    <div><h1>Dianping</h1><div class="sub" id="apiLine">localhost:8081</div></div>
+    <button onclick="openSettings()">⚙ Settings</button>
   </header>
   <main id="view"></main>
   <nav class="tabs">
-    <button id="tab-home" onclick="go('home')"><span class="ico">🏠</span>首页</button>
-    <button id="tab-discover" onclick="go('discover')"><span class="ico">📝</span>探店</button>
-    <button id="tab-me" onclick="go('me')"><span class="ico">👤</span>我的</button>
+    <button id="tab-home" onclick="go('home')"><span class="ico">🏠</span>Home</button>
+    <button id="tab-discover" onclick="go('discover')"><span class="ico">📝</span>Discover</button>
+    <button id="tab-me" onclick="go('me')"><span class="ico">👤</span>Me</button>
   </nav>
 </div>
 <div id="toast"></div>
 <div id="mask" onclick="if(event.target===this)closeSettings()"><div id="sheet"></div></div>
 <script>
 "use strict";
-/* ---------- 基础 ---------- */
+/* ---------- Base ---------- */
 const store = {
   get api(){ return localStorage.getItem('hmdp_api') || 'http://localhost:8081'; },
   set api(v){ localStorage.setItem('hmdp_api', v); },
@@ -102,16 +102,16 @@ async function api(path, {method='GET', body=null, auth=false} = {}){
   }
   let res;
   try { res = await fetch(store.api + path, {method, headers, body: body?JSON.stringify(body):undefined}); }
-  catch(e){ toast('连不上后端，检查地址和后端是否启动'); throw e; }
+  catch(e){ toast('Cannot reach the backend — check the URL and that it is running'); throw e; }
   if (res.status === 401){ needLogin(); throw new Error('401'); }
   const json = await res.json();
-  if (!json.success){ toast(json.errorMsg || '请求失败'); throw new Error(json.errorMsg); }
+  if (!json.success){ toast(json.errorMsg || 'Request failed'); throw new Error(json.errorMsg); }
   return json.data;
 }
-function needLogin(){ store.token = null; toast('请先登录'); go('me'); }
+function needLogin(){ store.token = null; toast('Please log in first'); go('me'); }
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function listOf(d){ return Array.isArray(d) ? d : (d && d.records) ? d.records : []; }
-/* ---------- 路由 ---------- */
+/* ---------- Router ---------- */
 let curTab = 'home';
 function go(tab, param){
   curTab = tab;
@@ -122,83 +122,83 @@ function go(tab, param){
   else if (tab==='discover') renderDiscover(param);
   else renderMe();
 }
-/* ---------- 设置 ---------- */
+/* ---------- Settings ---------- */
 function openSettings(){
   const s = document.getElementById('sheet');
-  s.innerHTML = `<div class="sec-t">后端地址</div>
+  s.innerHTML = `<div class="sec-t">Backend URL</div>
     <input class="inp" id="apiInput" value="${esc(store.api)}" placeholder="http://localhost:8081">
-    <button class="btn" onclick="saveSettings()">保存</button>
-    <div class="hint">本机后端默认 <code>http://localhost:8081</code>。页面用浏览器直接打开（file://）也能用，后端已开跨域。</div>`;
+    <button class="btn" onclick="saveSettings()">Save</button>
+    <div class="hint">Local backend default: <code>http://localhost:8081</code>. Opening this page directly in a browser (file://) works too — CORS is enabled on the backend.</div>`;
   document.getElementById('mask').classList.add('show');
 }
 function closeSettings(){ document.getElementById('mask').classList.remove('show'); }
 function saveSettings(){
   const v = document.getElementById('apiInput').value.trim().replace(/\/$/,'');
-  if (!v){ toast('地址不能为空'); return; }
-  store.api = v; closeSettings(); toast('已保存'); go(curTab);
+  if (!v){ toast('URL must not be empty'); return; }
+  store.api = v; closeSettings(); toast('Saved'); go(curTab);
 }
-/* ---------- 首页 ---------- */
-const typeEmoji = n => /美食|餐厅|火锅|茶/.test(n) ? '🍜' : /KTV|酒吧|轰趴/.test(n) ? '🎤' : /丽人|美发|美睫|美甲|SPA|美容/.test(n) ? '💇' : /健身|运动/.test(n) ? '🏋️' : /按摩|足疗/.test(n) ? '🦶' : /亲子/.test(n) ? '🧸' : '🏪';
+/* ---------- Home ---------- */
+const typeEmoji = n => /Food|Drink|Restaurant|Hotpot|Tea/.test(n) ? '🍜' : /KTV|Bar|Party/.test(n) ? '🎤' : /Beauty|Hair|Lash|Nail|SPA/.test(n) ? '💇' : /Fitness|Sport/.test(n) ? '🏋️' : /Massage|Foot/.test(n) ? '🦶' : /Kids|Family/.test(n) ? '🧸' : '🏪';
 let curTypeId = null, curTypeName = '';
 async function renderHome(param){
   const v = document.getElementById('view');
   if (param && param.shopId) return renderShopDetail(param.shopId);
-  v.innerHTML = `<div class="sec-t">商户分类</div><div class="chips" id="chips"><div class="empty">加载中…</div></div><div id="shopList"></div>`;
+  v.innerHTML = `<div class="sec-t">Categories</div><div class="chips" id="chips"><div class="empty">Loading…</div></div><div id="shopList"></div>`;
   try {
     const types = listOf(await api('/shop-type/list'));
     const box = document.getElementById('chips');
     box.innerHTML = types.map(t=>`<button data-id="${t.id}" onclick="pickType(${t.id},'${esc(t.name)}')">${typeEmoji(t.name)} ${esc(t.name)}</button>`).join('');
     if (types.length) pickType(types[0].id, types[0].name);
-  } catch(e){ /* toast 已弹 */ }
+  } catch(e){ /* toast already shown */ }
 }
 async function pickType(id, name){
   curTypeId = id; curTypeName = name;
   document.querySelectorAll('#chips button').forEach(b=>b.classList.toggle('on', +b.dataset.id===+id));
   const box = document.getElementById('shopList');
-  box.innerHTML = `<div class="card"><div class="sec-t">${esc(name)}</div><div id="shops"><div class="empty">加载中…</div></div></div>`;
+  box.innerHTML = `<div class="card"><div class="sec-t">${esc(name)}</div><div id="shops"><div class="empty">Loading…</div></div></div>`;
   try {
     const shops = listOf(await api(`/shop/of/type?typeId=${id}&current=1`));
     document.getElementById('shops').innerHTML = shops.length ? shops.map(s=>`
       <div class="shop" onclick="go('home',{shopId:${s.id}})">
         <div class="pic">${s.images ? `<img src="${esc(s.images.split(',')[0])}" onerror="this.remove()">` : '🏪'}</div>
         <div><div class="nm">${esc(s.name)}</div>
-        <div class="meta"><span class="score">${(s.score/10).toFixed(1)}分</span> · 月售${s.sold} · ${esc(s.area||'')}</div>
-        <div class="meta">¥${s.avgPrice}/人 · ${esc(s.address||'')}</div></div>
-      </div>`).join('') : `<div class="empty">这分类下暂无商户</div>`;
+        <div class="meta"><span class="score">${(s.score/10).toFixed(1)}</span> · ${s.sold} sold / mo · ${esc(s.area||'')}</div>
+        <div class="meta">¥${s.avgPrice} / person · ${esc(s.address||'')}</div></div>
+      </div>`).join('') : `<div class="empty">No shops in this category</div>`;
   } catch(e){}
 }
 async function renderShopDetail(id){
   const v = document.getElementById('view');
-  v.innerHTML = `<button class="back" onclick="go('home')">‹ 返回</button><div class="card"><div class="empty">加载中…</div></div>`;
+  v.innerHTML = `<button class="back" onclick="go('home')">‹ Back</button><div class="card"><div class="empty">Loading…</div></div>`;
   try {
     const s = await api(`/shop/${id}`);
     const vouchers = listOf(await api(`/voucher/list/${id}`)).filter(x=>x.status===1);
-    v.innerHTML = `<button class="back" onclick="go('home')">‹ 返回</button>
+    v.innerHTML = `<button class="back" onclick="go('home')">‹ Back</button>
     <div class="card">
       <div class="sec-t" style="font-size:17px">${esc(s.name)}</div>
-      <div class="kv"><span class="k">评分</span><span class="score" style="color:#ff5a1f;font-weight:700">${(s.score/10).toFixed(1)} 分</span></div>
-      <div class="kv"><span class="k">人均</span><span>¥${s.avgPrice}</span></div>
-      <div class="kv"><span class="k">地址</span><span>${esc(s.address||'-')}</span></div>
-      <div class="kv"><span class="k">营业时间</span><span>${esc(s.openHours||'-')}</span></div>
-      <div class="kv"><span class="k">销量 / 评论</span><span>${s.sold} / ${s.comments}</span></div>
+      <div class="kv"><span class="k">Rating</span><span class="score" style="color:#ff5a1f;font-weight:700">${(s.score/10).toFixed(1)}</span></div>
+      <div class="kv"><span class="k">Avg. price</span><span>¥${s.avgPrice}</span></div>
+      <div class="kv"><span class="k">Address</span><span>${esc(s.address||'-')}</span></div>
+      <div class="kv"><span class="k">Hours</span><span>${esc(s.openHours||'-')}</span></div>
+      <div class="kv"><span class="k">Sales / Reviews</span><span>${s.sold} / ${s.comments}</span></div>
     </div>
-    <div class="card"><div class="sec-t">优惠券</div><div id="vbox">${
+    <div class="card"><div class="sec-t">Vouchers</div><div id="vbox">${
       vouchers.length ? vouchers.map(x=>`
         <div class="voucher"><div><div class="vt">${esc(x.title)}</div>
-        <div class="vp"><b>¥${(x.actualValue/100)}</b> 代金券 · 售价 ¥${(x.payValue/100)}${x.type===1?' · <span style="color:#ff5a1f">秒杀</span>':''}</div></div>
-        ${x.type===1?`<button class="btn sm" onclick="seckill(${x.id})">抢购</button>`:''}</div>`).join('')
-      : `<div class="empty">暂无优惠券</div>`}</div></div>`;
+        <div class="vp"><b>¥${(x.actualValue/100)}</b> voucher · Price ¥${(x.payValue/100)}${x.type===1?' · <span style="color:#ff5a1f">Flash sale</span>':''}</div></div>
+        ${x.type===1?`<button class="btn sm" onclick="seckill(${x.id})">Grab it</button>`:''}</div>`).join('')
+      : `<div class="empty">No vouchers</div>`}</div></div>`;
   } catch(e){}
 }
 async function seckill(voucherId){
-  try { await api(`/voucher-order/seckill/${voucherId}`, {method:'POST', auth:true}); toast('抢购成功！'); }
+  try { await api(`/voucher-order/seckill/${voucherId}`, {method:'POST', auth:true}); toast('Grabbed it!'); }
   catch(e){}
 }
-/* ---------- 探店 ---------- */
+/* ---------- Discover ---------- */
 async function renderDiscover(param){
   const v = document.getElementById('view');
   if (param && param.blogId) return renderBlogDetail(param.blogId);
-  v.innerHTML = `<div class="sec-t">探店热榜</div><div id="blogs"><div class="card"><div class="empty">加载中…</div></div></div>`;
+  v.innerHTML = `<div class="sec-t">Trending blogs</div><div id="blogs"><div class="card"><div class="empty">Loading…</div></div></div>`;
   try {
     const blogs = listOf(await api('/blog/hot?current=1'));
     document.getElementById('blogs').innerHTML = blogs.length ? blogs.map(b=>`
@@ -206,79 +206,79 @@ async function renderDiscover(param){
         <div class="ph">📸</div>
         <div class="t">${esc(b.title)}</div>
         <div class="meta"><span>❤️ ${b.liked||0}</span><span>💬 ${b.comments||0}</span><span>${esc((b.createTime||'').slice(0,10))}</span></div>
-      </div>`).join('') : `<div class="card"><div class="empty">暂无探店内容</div></div>`;
+      </div>`).join('') : `<div class="card"><div class="empty">No blogs yet</div></div>`;
   } catch(e){}
 }
 async function renderBlogDetail(id){
   const v = document.getElementById('view');
-  v.innerHTML = `<button class="back" onclick="go('discover')">‹ 返回</button><div class="card"><div class="empty">加载中…</div></div>`;
+  v.innerHTML = `<button class="back" onclick="go('discover')">‹ Back</button><div class="card"><div class="empty">Loading…</div></div>`;
   try {
     const b = await api(`/blog/${id}`);
-    v.innerHTML = `<button class="back" onclick="go('discover')">‹ 返回</button>
+    v.innerHTML = `<button class="back" onclick="go('discover')">‹ Back</button>
     <div class="card"><div class="sec-t" style="font-size:16px;line-height:1.5">${esc(b.title)}</div>
       <div class="meta" style="font-size:12px;color:#999;margin-bottom:10px">❤️ ${b.liked||0} · 💬 ${b.comments||0} · ${esc((b.createTime||'').slice(0,16).replace('T',' '))}</div>
       <div class="content-html">${b.content||''}</div>
-      <div style="margin-top:14px"><button class="btn ghost" onclick="likeBlog(${b.id}, this)">❤️ 点赞 (${b.liked||0})</button></div>
+      <div style="margin-top:14px"><button class="btn ghost" onclick="likeBlog(${b.id}, this)">❤️ Like (${b.liked||0})</button></div>
     </div>`;
   } catch(e){}
 }
 async function likeBlog(id, btn){
-  try { await api(`/blog/like/${id}`, {method:'PUT', auth:true}); toast('已点赞'); btn.disabled = true; }
+  try { await api(`/blog/like/${id}`, {method:'PUT', auth:true}); toast('Liked!'); btn.disabled = true; }
   catch(e){}
 }
-/* ---------- 我的 ---------- */
+/* ---------- Me ---------- */
 async function renderMe(){
   const v = document.getElementById('view');
   if (!store.token){
-    v.innerHTML = `<div class="card"><div class="sec-t">登录 / 注册</div>
-      <div class="row"><input class="inp" id="email" placeholder="邮箱（这个版本用邮箱登录）"><button class="btn sm" id="codeBtn" style="white-space:nowrap" onclick="sendCode()">发验证码</button></div>
-      <input class="inp" id="code" placeholder="验证码" inputmode="numeric">
-      <button class="btn" onclick="doLogin()">登录</button>
-      <div class="hint">点「发验证码」后，邮件发不出去是正常的 —— 去你 Mac 终端跑：<br><code>grep '发送登录验证码' ~/dianping-setup/app.log | tail -1</code><br>就能看到验证码。</div></div>`;
+    v.innerHTML = `<div class="card"><div class="sec-t">Log in / Sign up</div>
+      <div class="row"><input class="inp" id="email" placeholder="Email (this build logs in with email)"><button class="btn sm" id="codeBtn" style="white-space:nowrap" onclick="sendCode()">Send code</button></div>
+      <input class="inp" id="code" placeholder="Verification code" inputmode="numeric">
+      <button class="btn" onclick="doLogin()">Log in</button>
+      <div class="hint">If the email never arrives after "Send code", that is expected — the code is in the backend log. On your Mac run:<br><code>grep 'Login verification code' ~/dianping-setup/app.log | tail -1</code><br>to see it.</div></div>`;
     return;
   }
-  v.innerHTML = `<div class="card"><div class="empty">加载中…</div></div>`;
+  v.innerHTML = `<div class="card"><div class="empty">Loading…</div></div>`;
   try {
     const me = await api('/user/me', {auth:true});
     const cnt = await api('/user/sign/count', {auth:true}).catch(()=>null);
     v.innerHTML = `<div class="card"><div class="me-head">
         <div class="avatar">${esc((me.nickName||'U')[0])}</div>
-        <div><div style="font-size:16px;font-weight:700">${esc(me.nickName||'用户')}</div>
+        <div><div style="font-size:16px;font-weight:700">${esc(me.nickName||'User')}</div>
         <div style="font-size:12px;color:#999">id: ${me.id}</div></div></div>
-      <div class="kv"><span class="k">本月签到</span><span>${cnt==null?'-':cnt+' 天'}</span></div>
+      <div class="kv"><span class="k">Check-ins this month</span><span>${cnt==null?'-':cnt+' days'}</span></div>
       <div style="margin-top:12px;display:flex;gap:8px">
-        <button class="btn sm" onclick="doSign()">📅 签到</button>
-        <button class="btn sm ghost" onclick="store.token=null;go('me')">退出登录</button>
+        <button class="btn sm" onclick="doSign()">📅 Check in</button>
+        <button class="btn sm ghost" onclick="store.token=null;go('me')">Log out</button>
       </div></div>`;
   } catch(e){}
 }
 let codeCd = 0;
 async function sendCode(){
   const email = document.getElementById('email').value.trim();
-  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ toast('先填正确的邮箱'); return; }
+  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ toast('Enter a valid email first'); return; }
   if (codeCd > 0) return;
   try {
     await api(`/user/code?phone=${encodeURIComponent(email)}`, {method:'POST'});
-    toast('验证码已生成，去终端日志里看');
+    toast('Code generated — check the backend log');
     codeCd = 60;
     const btn = document.getElementById('codeBtn');
-    const iv = setInterval(()=>{ codeCd--; if(codeCd<=0){ clearInterval(iv); btn.disabled=false; btn.textContent='发验证码'; } else { btn.disabled=true; btn.textContent=codeCd+'s'; } }, 1000);
+    const iv = setInterval(()=>{ codeCd--; if(codeCd<=0){ clearInterval(iv); btn.disabled=false; btn.textContent='Send code'; } else { btn.disabled=true; btn.textContent=codeCd+'s'; } }, 1000);
   } catch(e){}
 }
 async function doLogin(){
   const email = document.getElementById('email').value.trim();
   const code = document.getElementById('code').value.trim();
-  if (!email || !code){ toast('邮箱和验证码都要填'); return; }
+  if (!email || !code){ toast('Email and code are both required'); return; }
   try {
     const token = await api('/user/login', {method:'POST', body:{phone:email, code}});
-    store.token = token; toast('登录成功'); go('me');
+    store.token = token; toast('Logged in'); go('me');
   } catch(e){}
 }
 async function doSign(){
-  try { await api('/user/sign', {method:'POST', auth:true}); toast('签到成功'); go('me'); }
+  try { await api('/user/sign', {method:'POST', auth:true}); toast('Checked in'); go('me'); }
   catch(e){}
 }
-/* ---------- 启动 ---------- */
+/* ---------- Boot ---------- */
 go('home');
 </script>
 </body>
