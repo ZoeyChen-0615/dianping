@@ -36,7 +36,7 @@ import static com.hmdp.utils.RedisConstants.*;
 
 /**
  * <p>
- *  服务实现类
+ *  Service implementation
  * </p>
  *
  * @author 虎哥
@@ -47,94 +47,94 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
 
-    //这里需要声明一个线程池，因为下面缓存击穿问题，我们需要新建一个线程来完成重构缓存
+    // A thread pool is needed here: cache breakdown recovery below rebuilds the cache on a separate thread
     private static final ExecutorService CACHE_REBUILD_EXECUTOR = Executors.newFixedThreadPool(10);
     @Override
     public Result queryById(Long id) {
-        //解决缓存穿透的代码逻辑
+        // Cache-penetration-proof logic
         Shop shop = querywithchuantou(id);
-        //利用互斥锁解决缓存击穿的代码逻辑
+        // Mutex-based cache-breakdown-proof logic
 //        Shop shop = querywithjichuan_mutex(id);
 //       Shop shop = queryWithLogicalExpire(id);
         if (shop == null) {
-            return Result.fail("店铺不存在！！");
+            return Result.fail("Shop not found");
         }
         return Result.ok(shop);
     }
 
-    //解决缓存穿透的代码
+    // Guard against cache penetration
     public Shop querywithchuantou(Long id) {
-        //先从Redis中查，这里的常量值是固定的前缀 + 店铺id
+        // Check Redis first; the key is a fixed prefix + shop ID
         String shopJson = stringRedisTemplate.opsForValue().get(CACHE_SHOP_KEY + id);
-        //如果不为空（查询到了），则转为Shop类型直接返回
+        // Cache hit: convert to Shop and return directly
         if (StrUtil.isNotBlank(shopJson)) {
             Shop shop = JSONUtil.toBean(shopJson, Shop.class);
             return shop;
         }
 
-        //如果这个数据不存在，将这个数据写入到Redis中，并且将value设置为空字符串，然后设置一个较短的TTL，返回错误信息。
-        // 当再次发起查询时，先去Redis中判断value是否为空字符串，如果是空字符串，则说明是刚刚我们存的不存在的数据，直接返回错误信息
+        // Cache a missing entry as an empty string with a short TTL, then return the error.
+        // On the next query, an empty-string value means we cached a miss: return the error directly
 
-        //如果查询到的是空字符串，则说明是我们缓存的空数据
+        // An empty string means this is our cached miss
         if (shopJson!=null) {
             return  null;
         }
 
-        //否则去数据库中查
+        // Otherwise query the database
         Shop shop = getById(id);
 
-        //查不到，则将空字符串写入Redis
+        // Miss: write an empty string to Redis
         if (shop == null) {
-            //这里的常量值是2分钟
+            // TTL here is 2 minutes
             stringRedisTemplate.opsForValue().set(CACHE_SHOP_KEY + id, null, CACHE_NULL_TTL, TimeUnit.MINUTES);
             return null;
         }
 
-        //查到了则转为json字符串
+        // Hit: serialize to JSON
         String jsonStr = JSONUtil.toJsonStr(shop);
-        //并存入redis,并设置TTL，防止存了错的缓存
+        // Store in Redis with a TTL to avoid stale cache entries
         stringRedisTemplate.opsForValue().set(CACHE_SHOP_KEY + id, jsonStr,CACHE_SHOP_TTL, TimeUnit.MINUTES);
-        //最终把查询到的商户信息返回给前端
+        // Finally return the shop info to the frontend
         return shop;
     }
 
-    //互斥锁解决缓存击穿
+    // Mutex-based cache breakdown protection
     public Shop querywithjichuan_mutex(Long id) {
-        //先从Redis中查，这里的常量值是固定的前缀 + 店铺id
+        // Check Redis first; the key is a fixed prefix + shop ID
         String shopJson = stringRedisTemplate.opsForValue().get(CACHE_SHOP_KEY + id);
-        //如果不为空（查询到了），则转为Shop类型直接返回
+        // Cache hit: convert to Shop and return directly
         if (StrUtil.isNotBlank(shopJson)) {
             Shop shop = JSONUtil.toBean(shopJson, Shop.class);
             return shop;
         }
 
-        //如果查询到的是空字符串“”，则说明是我们缓存的空数据
+        // An empty string "" means this is our cached miss
         if (shopJson!=null) {
             return  null;
         }
 
-        //实现在高并发的情况下缓存重建
+        // Rebuild the cache under high concurrency
         Shop shop = null;
         try {
-            //1.获取互斥锁
+            // 1. Acquire the mutex
             boolean flag = tryLock(LOCK_SHOP_KEY + id);
-//        2.失败，则休眠并重试
+// 2. Failed: sleep and retry
             while (!flag) {
                 Thread.sleep(50);
                 return querywithjichuan_mutex(id);
             }
-            //3.获取成功->读取数据库，重建缓存
-            //查不到，则将空值写入Redis
+            // 3. Acquired: read the DB and rebuild the cache
+            // Miss: write the null marker to Redis
             shop = getById(id);
             if (shop == null) {
                 stringRedisTemplate.opsForValue().set(CACHE_SHOP_KEY + id, "", CACHE_NULL_TTL, TimeUnit.MINUTES);
                 return null;
             }
-            //查到了则转为json字符串
+            // Hit: serialize to JSON
             String jsonStr = JSONUtil.toJsonStr(shop);
-            //并存入redis，设置TTL
+            // Store in Redis with a TTL
             stringRedisTemplate.opsForValue().set(CACHE_SHOP_KEY + id, jsonStr, CACHE_SHOP_TTL, TimeUnit.MINUTES);
-            //最终把查询到的商户信息返回给前端
+            // Finally return the shop info to the frontend
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         } finally {
@@ -143,80 +143,80 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
         return shop;
     }
 
-    //逻辑过期解决缓存击穿
+    // Logical-expiration cache breakdown protection
     public Shop queryWithLogicalExpire(Long id) {
-        //1. 从redis中查询商铺缓存
+        // 1. Read the shop cache from Redis
         String json = stringRedisTemplate.opsForValue().get(CACHE_SHOP_KEY + id);
-        //2. 如果未命中，则返回空
+        // 2. Miss: return null
         if (StrUtil.isBlank(json)) {
             return null;
         }
-        //3. 命中，将json反序列化为对象
+        // 3. Hit: deserialize the JSON
         RedisData redisData = JSONUtil.toBean(json, RedisData.class);
-        //3.1 将data转为Shop对象
+        // 3.1 Convert data to a Shop
         JSONObject shopJson = (JSONObject) redisData.getData();
         Shop shop = JSONUtil.toBean(shopJson, Shop.class);
-        //3.2 获取过期时间
+        // 3.2 Get the expiration time
         LocalDateTime expireTime = redisData.getExpireTime();
-        //4. 判断是否过期
+        // 4. Check whether it is expired
         if (LocalDateTime.now().isBefore(expireTime)) {
-            //5. 未过期，直接返回商铺信息
+            // 5. Not expired: return the shop info directly
             return shop;
         }
-        //6. 过期，尝试获取互斥锁
+        // 6. Expired: try to acquire the mutex
         boolean flag = tryLock(LOCK_SHOP_KEY + id);
-        //7. 获取到了锁
+        // 7. Lock acquired
         if (flag) {
-            //8. 开启独立线程
+            // 8. Start a background thread
             CACHE_REBUILD_EXECUTOR.submit(() -> {
                 try {
-                    this.saveShop2Redis(id, 20L);//此处的expirSeconds应该为物品的活动时间,设置为20只为测试
+                    this.saveShop2Redis(id, 20L);// expirSeconds should be the item's active duration; 20 is just for testing
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 } finally {
                     unlock(LOCK_SHOP_KEY + id);
                 }
             });
-            //9. 直接返回商铺信息
+            // 9. Return the shop info directly
             return shop;
         }
-        //10. 未获取到锁，直接返回商铺信息
+        // 10. Lock not acquired: return the shop info directly
         return shop;
     }
 
     @Override
     @Transactional
     public Result update(Shop shop) {
-//        首先先判一下空
+// Null check first
         if (shop.getId() == null){
-            return Result.fail("店铺id不能为空！！");
+            return Result.fail("Shop ID must not be null");
         }
-        //先修改数据库
+        // Update the database first
         updateById(shop);
-        //再删除缓存
+        // Then evict the cache
         stringRedisTemplate.delete(CACHE_SHOP_KEY + shop.getId());
         return Result.ok();
     }
 
-    //下面用来解决热点高并发访问中的缓存击穿问题
+    // Below: cache breakdown protection for hot keys under high concurrency
 
-    //获取锁的代码逻辑
+    // Lock acquisition logic
     private boolean tryLock(String key) {
         Boolean flag = stringRedisTemplate.opsForValue().setIfAbsent(key, "1", 10, TimeUnit.SECONDS);
-        //避免返回值为null，我们这里使用了BooleanUtil工具类
+        // Guard against a null return with BooleanUtil
         return BooleanUtil.isTrue(flag);
     }
 
-    //释放锁
+    // Release the lock
     private void unlock(String key) {
         stringRedisTemplate.delete(key);
     }
 
     //-------------------------------------------------------------
-    //逻辑过期实现缓存击穿问题->热点问题的数据预热
+    // Logical expiration for cache breakdown; pre-warm hot data
     public void saveShop2Redis(Long id, Long expirSeconds) throws InterruptedException {
         Shop shop = getById(id);
-        Thread.sleep(200); //模拟上面取数据的时间
+        Thread.sleep(200); // Simulate the fetch latency above
 
         RedisData redisData = new RedisData();
         redisData.setData(shop);
@@ -226,24 +226,24 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
 
     @Override
     public Result queryShopByType(Integer typeId, Integer current, Double x, Double y) {
-        //1. 判断是否需要根据距离查询
+        // 1. Decide whether a geo query is needed
         if (x == null || y == null) {
-            // 根据类型分页查询
+            // Query by type with pagination
             Page<Shop> page = query()
                     .eq("type_id", typeId)
                     .page(new Page<>(current, SystemConstants.DEFAULT_PAGE_SIZE));
-            // 返回数据
+            // Return the data
             return Result.ok(page.getRecords());
         }
-//        以下是需要根据距离查询
+// The following is the geo query path
 
-        //2. 计算分页查询参数
+        // 2. Compute pagination bounds
         int from = (current - 1) * SystemConstants.MAX_PAGE_SIZE;
         int end = current * SystemConstants.MAX_PAGE_SIZE;
 
 
         String key = SHOP_GEO_KEY + typeId;
-        //3. 查询redis、按照距离排序、分页; 结果：shopId、distance
+        // 3. Query Redis sorted by distance with pagination; result: shopId + distance
         //GEOSEARCH key FROMLONLAT x y BYRADIUS 5000 m WITHDIST
         GeoResults<RedisGeoCommands.GeoLocation<String>> results = stringRedisTemplate.opsForGeo().search(key,
                 GeoReference.fromCoordinate(x, y),
@@ -254,11 +254,11 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
             return Result.ok(Collections.emptyList());
         }
 
-        //4. 解析出id
+        // 4. Parse out the IDs
         List<GeoResult<RedisGeoCommands.GeoLocation<String>>> list = results.getContent();
 
         if (list.size() < from) {
-            //起始查询位置大于数据总量，则说明没数据了，返回空集合
+            // Start offset beyond the total: no more data, return an empty list
             return Result.ok(Collections.emptyList());
         }
 
@@ -272,15 +272,15 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
         });
 
 
-        //5. 根据id查询shop
+        // 5. Query shops by IDs
         String idsStr = StrUtil.join(",", ids);
 
         List<Shop> shops = query().in("id", ids).last("ORDER BY FIELD( id," + idsStr + ")").list();
         for (Shop shop : shops) {
-            //设置shop的举例属性，从distanceMap中根据shopId查询
+            // Set each shop's distance from distanceMap by shop ID
             shop.setDistance(distanceMap.get(shop.getId().toString()).getValue());
         }
-        //6. 返回
+        // 6. Return
         return Result.ok(shops);
     }
 }

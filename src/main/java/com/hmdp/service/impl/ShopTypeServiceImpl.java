@@ -17,7 +17,7 @@ import static com.hmdp.utils.RedisConstants.CACHE_SHOP_TYPE_KEY;
 
 /**
  * <p>
- *  服务实现类
+ *  Service implementation
  * </p>
  *
  * @author 虎哥
@@ -29,10 +29,10 @@ public class ShopTypeServiceImpl extends ServiceImpl<ShopTypeMapper, ShopType> i
     private StringRedisTemplate stringRedisTemplate;
     @Override
     public Result queryList() {
-        //先从Redis中查，这里的常量值是固定前缀 + 店铺id
+        // Look up Redis first; the key is a fixed prefix + shop type ID
         List<String> shopTypes =
                 stringRedisTemplate.opsForList().range(CACHE_SHOP_TYPE_KEY, 0, -1);
-        //如果不为空（查询到了），则转为ShopType类型直接返回
+        // Cache hit: convert to ShopType and return directly
         if (!shopTypes.isEmpty()) {
             List<ShopType> tmp = new ArrayList<>();
             for (String types : shopTypes) {
@@ -41,18 +41,18 @@ public class ShopTypeServiceImpl extends ServiceImpl<ShopTypeMapper, ShopType> i
             }
             return Result.ok(tmp);
         }
-        //否则去数据库中查
+        // Otherwise query the database
         List<ShopType> tmp = query().orderByAsc("sort").list();
         if (tmp == null){
-            return Result.fail("店铺类型不存在！！");
+            return Result.fail("Shop type not found");
         }
-        //查到了转为json字符串，存入redis
+        // Found: serialize to JSON and store in Redis
         for (ShopType shopType : tmp) {
             String jsonStr = JSONUtil.toJsonStr(shopType);
             shopTypes.add(jsonStr);
         }
         stringRedisTemplate.opsForList().leftPushAll(CACHE_SHOP_TYPE_KEY,shopTypes);
-        //最终把查询到的商户分类信息返回给前端
+        // Finally return the shop type info to the frontend
         return Result.ok(tmp);
     }
 }

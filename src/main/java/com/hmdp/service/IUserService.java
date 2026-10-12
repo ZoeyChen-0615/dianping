@@ -10,7 +10,7 @@ import javax.servlet.http.HttpSession;
 
 /**
  * <p>
- *  服务类
+ *  Service interface
  * </p>
  *
  * @author 虎哥

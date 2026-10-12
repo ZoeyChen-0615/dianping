@@ -35,7 +35,7 @@ import static com.hmdp.utils.RedisConstants.FEED_KEY;
 
 /**
  * <p>
- *  服务实现类
+ *  Service implementation
  * </p>
  *
  * @author 虎哥
@@ -58,40 +58,40 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
     public Result queryById(Integer id) {
         Blog blog = getById(id);
         if (blog == null) {
-            return Result.fail("博客不存在或已被删除");
+            return Result.fail("Blog not found or has been deleted");
         }
         queryBlogUser(blog);
-        //追加判断blog是否被当前用户点赞，逻辑封装到isBlogLiked方法中
+        // Also check whether the current user liked this blog (see isBlogLiked)
         isBlogLiked(blog);
         return Result.ok(blog);
     }
 
     @Override
     public Result queryHotBlog(Integer current) {
-        // 根据用户查询
+        // Query by user
         Page<Blog> page = query()
                 .orderByDesc("liked")
                 .page(new Page<>(current, SystemConstants.MAX_PAGE_SIZE));
-        // 获取当前页数据
+        // Get the current page records
         List<Blog> records = page.getRecords();
-        // 查询用户
+        // Load the author info
         records.forEach(blog -> {
             queryBlogUser(blog);
-            //追加判断blog是否被当前用户点赞，逻辑封装到isBlogLiked方法中
+            // Also check whether the current user liked this blog (see isBlogLiked)
             isBlogLiked(blog);
         });
         return Result.ok(records);
     }
 
     private void isBlogLiked(Blog blog) {
-        //1. 获取当前用户信息
+        // 1. Get the current user
         UserDTO userDTO = UserHolder.getUser();
-        //当用户未登录时，就不判断了，直接return结束逻辑
+        // Anonymous visitor: skip the check entirely
         if (userDTO == null) {
             return;
         }
 
-        //2. 判断当前用户是否点赞
+        // 2. Check whether the current user liked it
         String key = BLOG_LIKED_KEY + blog.getId();
         Double score = stringRedisTemplate.opsForZSet().score(key, userDTO.getId().toString());
         blog.setIsLike(score != null);
@@ -106,26 +106,26 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
 
     @Override
     public Result likeBlog(Long id) {
-        //1. 获取当前用户信息
+        // 1. Get the current user
         Long userId = UserHolder.getUser().getId();
-        //2. 如果当前用户未点赞，则点赞数 +1，同时将用户加入set集合
+        // 2. Not liked yet: increment the like count and add the user to the set
         String key = BLOG_LIKED_KEY + id;
-        //尝试获取score
+        // Try to get the score
         Double score = stringRedisTemplate.opsForZSet().score(key, userId.toString());
-        //为null，则表示集合中没有该用户
+        // null means the user is not in the set
         if (score == null) {
-            //点赞数 +1
+            // Increment the like count
             boolean success = update().setSql("liked = liked + 1").eq("id", id).update();
-            //将用户加入set集合
+            // Add the user to the set
             if (success) {
                 stringRedisTemplate.opsForZSet().add(key, userId.toString(), System.currentTimeMillis());
             }
-            //3. 如果当前用户已点赞，则取消点赞，将用户从set集合中移除
+            // 3. Already liked: unlike and remove the user from the set
         }else {
-            //点赞数 -1
+            // Decrement the like count
             boolean success = update().setSql("liked = liked - 1").eq("id", id).update();
             if (success){
-                //从set集合移除
+                // Remove from the set
                 stringRedisTemplate.opsForZSet().remove(key, userId.toString());
             }
         }
@@ -135,15 +135,15 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
     @Override
     public Result queryBlogLikes(Integer id) {
         String key = BLOG_LIKED_KEY + id;
-        //zrange key 0 4  查询zset中前5个元素
+        // zrange key 0 4 — fetch the top 5 elements of the zset
         Set<String> top5 = stringRedisTemplate.opsForZSet().range(key, 0, 4);
-        //如果是空的(可能没人点赞)，直接返回一个空集合
+        // Empty (nobody liked it yet): return an empty list
         if (top5 == null || top5.isEmpty()) {
             return Result.ok(Collections.emptyList());
         }
         List<Long> ids = top5.stream().map(Long::valueOf).collect(Collectors.toList());
-        //将ids使用`,`拼接，SQL语句查询出来的结果并不是按照我们期望的方式进行排
-        //所以我们需要用order by field来指定排序方式，期望的排序方式就是按照查询出来的id进行排序
+        // Join the ids with ','. SQL IN does not return rows in our order,
+        // so sort explicitly with ORDER BY FIELD(id, ...)
         String idsStr = StrUtil.join(",", ids);
         //select * from tb_user where id in (ids[0], ids[1] ...) order by field(id, ids[0], ids[1] ...)
         List<UserDTO> userDTOS = userService.query().in("id", ids)
@@ -156,50 +156,50 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
 
     @Override
     public Result saveBlog(Blog blog) {
-        // 获取登录用户
+        // Get the logged-in user
         UserDTO user = UserHolder.getUser();
         blog.setUserId(user.getId());
-        // 保存探店博文
+        // Save the blog post
         boolean isSuccess = blogService.save(blog);
         if (!isSuccess)
         {
-            return Result.fail("新增笔记失败！");
+            return Result.fail("Failed to publish the post");
         }
-        //如果保存成功，则获取保存笔记的发布者id，用该id去follow_user表中查对应的粉丝id
+        // On success, get the author's ID and look up their followers in tb_follow
 //        select * from tb_follower where follow_user_id = ?
         List<Follow> followUsers = followService.query().eq("follow_user_id", user.getId()).list();
         for (Follow follow : followUsers) {
             Long userId = follow.getUserId();
             String key = FEED_KEY+ userId;
-            //推送数据,每一个粉丝都有自己的收件箱
+            // Fan-out: every follower has their own inbox
             stringRedisTemplate.opsForZSet().add(key, blog.getId().toString(), System.currentTimeMillis());
         }
 
-        // 返回id
+        // Return the ID
         return Result.ok(blog.getId());
     }
 
     @Override
     public Result queryBlogOfFollow(Long max, Integer offset) {
-        //1. 获取当前用户
+        // 1. Get the current user
         Long userId = UserHolder.getUser().getId();
-        //2. 查询该用户收件箱（之前我们存的key是固定前缀 + 粉丝id），所以根据当前用户id就可以查询是否有关注的人发了笔记
+        // 2. Read the user's inbox (key = fixed prefix + user ID) for posts from followed bloggers
         String key = FEED_KEY + userId;
         Set<ZSetOperations.TypedTuple<String>> typeTuples = stringRedisTemplate.opsForZSet()
                 .reverseRangeByScoreWithScores(key, 0, max, offset, 2);
-        //3. 非空判断
+        // 3. Null/empty check
         if (typeTuples == null || typeTuples.isEmpty()){
             return Result.ok(Collections.emptyList());
         }
-        //4. 解析数据，blogId、minTime（时间戳）、offset，这里指定创建的list大小，可以略微提高效率，因为我们知道这个list就得是这么大
+        // 4. Parse blogId, minTime (timestamp) and offset; pre-size the list since we know how big it will be
         ArrayList<Long> ids = new ArrayList<>(typeTuples.size());
         long minTime = 0;
         int os = 1;
         for (ZSetOperations.TypedTuple<String> typeTuple : typeTuples) {
-            //4.1 获取id
+            // 4.1 Get the ID
             String id = typeTuple.getValue();
             ids.add(Long.valueOf(id));
-            //4.2 获取score（时间戳）
+            // 4.2 Get the score (timestamp)
             long time = typeTuple.getScore().longValue();
             if (time == minTime){
                 os++;
@@ -208,19 +208,19 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
                 os = 1;
             }
         }
-        //解决SQL的in不能排序问题，手动指定排序为传入的ids
+        // Work around SQL IN not preserving order: sort by the given IDs
         String idsStr = StrUtil.join(",");
 
-        //5. 根据id查询blog
+        // 5. Query the blogs by IDs
         List<Blog> blogs = query().in("id", ids).last("ORDER BY FIELD(id," + idsStr + ")").list();
 
         for (Blog blog : blogs) {
-            //5.1 查询发布该blog的用户信息
+            // 5.1 Load the author's info
             queryBlogUser(blog);
-            //5.2 查询当前用户是否给该blog点过赞
+            // 5.2 Check whether the current user liked it
             isBlogLiked(blog);
         }
-        //6. 封装结果并返回
+        // 6. Wrap up and return
         ScrollResult scrollResult = new ScrollResult();
         scrollResult.setList(blogs);
         scrollResult.setOffset(os);

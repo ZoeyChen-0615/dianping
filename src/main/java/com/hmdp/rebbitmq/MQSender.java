@@ -7,7 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
- * 消息发送者
+ *  Message producer
  */
 @Slf4j
 @Service
@@ -18,11 +18,11 @@ public class MQSender {
 
     private static final String ROUTINGKEY = "seckill.message";
     /**
-     * 发送秒杀信息
+     * Send flash-sale messages
      * @param msg
      */
     public void sendSeckillMessage(String msg){
-        log.info("发送消息"+msg);
+        log.info("Sending message: " + msg);
         rabbitTemplate.convertAndSend(RabbitMQTopicConfig.EXCHANGE,ROUTINGKEY,msg);
     }
 }

@@ -13,7 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import javax.annotation.Resource;
 
 /**
- * 消息消费者
+ *  Message consumer
  */
 @Slf4j
 @Service
@@ -25,39 +25,39 @@ public class MQReceiver {
     @Resource
     ISeckillVoucherService seckillVoucherService;
     /**
-     * 接收秒杀信息并下单
+     * Receive flash-sale messages and place orders
      * @param msg
      */
     @Transactional
     @RabbitListener(queues = RabbitMQTopicConfig.QUEUE)
     public void receiveSeckillMessage(String msg){
-        log.info("接收到消息: "+msg);
+        log.info("Received message: " + msg);
         VoucherOrder voucherOrder = JSON.parseObject(msg, VoucherOrder.class);
 
         Long voucherId = voucherOrder.getVoucherId();
-        //5.一人一单
+        // 5. One order per user
         Long userId = voucherOrder.getUserId();
-        //5.1查询订单
+        // 5.1 Look up the order
         int count = voucherOrderService.query().eq("user_id",userId).eq("voucher_id", voucherId).count();
-        //5.2判断是否存在
+        // 5.2 Check whether it exists
         if(count>0){
-            //用户已经购买过了
-            log.error("该用户已购买过");
+            // The user has already purchased
+            log.error("User already purchased");
             return ;
         }
-        log.info("扣减库存");
-        //6.扣减库存
+        log.info("Decrementing stock");
+        // 6. Decrement stock
         boolean success = seckillVoucherService
                 .update()
                 .setSql("stock = stock-1")
                 .eq("voucher_id", voucherId)
-                .gt("stock",0)//cas乐观锁
+                .gt("stock",0)// CAS optimistic lock
                 .update();
         if(!success){
-            log.error("库存不足");
+            log.error("Out of stock");
             return;
         }
-        //直接保存订单
+        // Save the order directly
         voucherOrderService.save(voucherOrder);
     }
 

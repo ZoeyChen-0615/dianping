@@ -8,7 +8,7 @@ import org.springframework.stereotype.Service;
 
 /**
  * <p>
- * 秒杀优惠券表，与优惠券是一对一关系 服务实现类
+ *  Flash-sale voucher table, one-to-one with voucher — service implementation
  * </p>
  *
  * @author 虎哥
