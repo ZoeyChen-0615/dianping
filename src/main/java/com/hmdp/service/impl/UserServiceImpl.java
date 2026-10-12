@@ -47,7 +47,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
     private StringRedisTemplate stringRedisTemplate;
     //发短信
     @Override
-    public Result sendCode(String phone, HttpSession session) {
+    public Result sendCode(String phone, HttpSession session) throws MessagingException {
         // 1. 判断是否在一级限制条件内
         Boolean oneLevelLimit = stringRedisTemplate.opsForSet().isMember(ONE_LEVERLIMIT_KEY + phone, "1");
         if (oneLevelLimit != null && oneLevelLimit) {
@@ -92,11 +92,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         stringRedisTemplate.opsForValue().set(LOGIN_CODE_KEY+phone,code,LOGIN_CODE_TTL, TimeUnit.MINUTES);
 
         log.info("发送登录验证码：{}", code);
-        //发送验证码；邮件发送失败不影响登录流程，验证码已写入 Redis，可从日志或 Redis 获取
+         //发送验证码（本地演示环境邮件服务不可用，失败只记日志，不影响验证码下发）
         try {
             MailUtils.sendtoMail(phone, code);
-        } catch (MessagingException e) {
-            log.warn("验证码邮件发送失败（{}），请从日志或 Redis key login:code:{} 获取验证码", e.getMessage(), phone);
+        } catch (Exception e) {
+            log.warn("邮件发送失败（演示环境忽略），验证码已写入Redis/日志：{}", code);
         }
 
         // 更新发送时间和次数
