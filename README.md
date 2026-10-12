@@ -9,14 +9,21 @@
 - `src/` —— 后端（Spring Boot 2.3，端口 8081）
 - `src/main/resources/db/hmdp.sql` —— 数据库初始化脚本
 - `frontend/index.html` —— 前端（单文件手机端页面，直接用浏览器打开）
-- `start-backend.bat` —— Windows 一键启动后端
+- `setup-windows.ps1` —— Windows 一键环境安装脚本（管理员 PowerShell 运行）
+- `start-backend.bat` —— Windows 启动后端（环境装好后双击）
 
 ## 环境要求
 
 JDK 8、Maven 3.6+、MySQL 8、Redis 6.2+（需 GEOSEARCH）、RabbitMQ 3.x。
-Windows 注意：Redis 官方无 Windows 版，用 WSL2 / Docker / Memurai。
+Windows 注意：Redis 官方无 Windows 版，用 Memurai / WSL2 / Docker。
 
 ## 启动步骤
+
+**Windows 全新机器**：右键 PowerShell → 以管理员身份运行，执行
+`Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`，
+然后到仓库根目录跑 `.\setup-windows.ps1`（自动装 JDK8/Maven/MySQL/RabbitMQ、建库导数据、起后端；Redis 按脚本提示另装）。
+
+**手动步骤**（Mac/Linux，或 Windows 已有环境）：
 
 1. `CREATE DATABASE hmdp CHARACTER SET utf8mb4;` 后导入 `src/main/resources/db/hmdp.sql`。
 2. 按本机情况改 `src/main/resources/application.yaml`（MySQL 密码、Redis、RabbitMQ）。
