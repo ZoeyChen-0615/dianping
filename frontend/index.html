@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>黑马点评</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { background:#f2f2f2; font-family:-apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; color:#333; font-size:14px; }
+  #app { max-width:480px; margin:0 auto; background:#f7f7f7; min-height:100vh; position:relative; box-shadow:0 0 20px rgba(0,0,0,.08); padding-bottom:64px; }
+  header.top { position:sticky; top:0; z-index:10; background:linear-gradient(135deg,#ff5a1f,#ff7a3d); color:#fff; padding:14px 16px; display:flex; align-items:center; justify-content:space-between; }
+  header.top h1 { font-size:18px; font-weight:700; }
+  header.top .sub { font-size:11px; opacity:.85; margin-top:2px; }
+  header.top button { background:rgba(255,255,255,.2); border:none; color:#fff; border-radius:16px; padding:6px 12px; font-size:12px; cursor:pointer; }
+  #view { padding:12px 12px 20px; }
+  nav.tabs { position:fixed; bottom:0; left:50%; transform:translateX(-50%); width:100%; max-width:480px; background:#fff; border-top:1px solid #eee; display:flex; z-index:10; }
+  nav.tabs button { flex:1; border:none; background:none; padding:9px 0 10px; font-size:11px; color:#999; cursor:pointer; }
+  nav.tabs button .ico { font-size:21px; display:block; margin-bottom:2px; }
+  nav.tabs button.on { color:#ff5a1f; font-weight:600; }
+  .card { background:#fff; border-radius:12px; padding:14px; margin-bottom:12px; box-shadow:0 1px 4px rgba(0,0,0,.05); }
+  .chips { display:flex; gap:8px; overflow-x:auto; padding:4px 2px 10px; }
+  .chips button { flex:0 0 auto; border:1px solid #eee; background:#fff; border-radius:18px; padding:8px 14px; font-size:13px; cursor:pointer; }
+  .chips button.on { background:#ff5a1f; border-color:#ff5a1f; color:#fff; }
+  .shop { display:flex; gap:12px; padding:12px 0; border-bottom:1px solid #f3f3f3; cursor:pointer; }
+  .shop:last-child { border-bottom:none; }
+  .shop .pic { width:84px; height:84px; border-radius:10px; background:linear-gradient(135deg,#ffd9c7,#ffb59a); flex:0 0 auto; display:flex; align-items:center; justify-content:center; font-size:30px; overflow:hidden; }
+  .shop .pic img { width:100%; height:100%; object-fit:cover; }
+  .shop .nm { font-size:15px; font-weight:600; margin-bottom:4px; }
+  .shop .meta { font-size:12px; color:#999; line-height:1.7; }
+  .shop .score { color:#ff5a1f; font-weight:700; }
+  .blog { cursor:pointer; }
+  .blog .ph { height:150px; border-radius:10px; background:linear-gradient(135deg,#ffe3d3,#ffc9ad); display:flex; align-items:center; justify-content:center; font-size:44px; margin-bottom:10px; }
+  .blog .t { font-size:15px; font-weight:600; margin-bottom:6px; line-height:1.5; }
+  .blog .meta { font-size:12px; color:#999; display:flex; gap:12px; }
+  .content-html { line-height:1.8; font-size:14px; }
+  .content-html br { display:block; }
+  .btn { display:block; width:100%; border:none; border-radius:10px; padding:13px; font-size:15px; cursor:pointer; background:#ff5a1f; color:#fff; font-weight:600; }
+  .btn.ghost { background:#fff; color:#ff5a1f; border:1px solid #ff5a1f; }
+  .btn:disabled { opacity:.5; }
+  .btn.sm { width:auto; display:inline-block; padding:8px 18px; font-size:13px; }
+  input.inp { width:100%; border:1px solid #e5e5e5; border-radius:10px; padding:12px; font-size:14px; margin-bottom:10px; outline:none; }
+  input.inp:focus { border-color:#ff5a1f; }
+  .row { display:flex; gap:8px; }
+  .row .inp { flex:1; }
+  .hint { font-size:12px; color:#999; line-height:1.7; margin-top:8px; }
+  .hint code { background:#f3f3f3; padding:1px 6px; border-radius:4px; font-size:11px; }
+  #toast { position:fixed; bottom:80px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,.75); color:#fff; padding:10px 18px; border-radius:20px; font-size:13px; opacity:0; transition:opacity .25s; pointer-events:none; z-index:99; max-width:86%; text-align:center; }
+  #toast.show { opacity:1; }
+  .sec-t { font-size:15px; font-weight:700; margin:4px 0 10px; }
+  .kv { display:flex; justify-content:space-between; font-size:13px; padding:7px 0; border-bottom:1px dashed #f0f0f0; }
+  .kv:last-child { border:none; }
+  .kv .k { color:#999; }
+  .voucher { border:1px dashed #ffb59a; border-radius:10px; padding:12px; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  .voucher .vt { font-weight:600; font-size:14px; margin-bottom:4px; }
+  .voucher .vp { font-size:12px; color:#999; }
+  .voucher .vp b { color:#ff5a1f; font-size:16px; }
+  .empty { text-align:center; color:#bbb; padding:40px 0; font-size:13px; }
+  .back { border:none; background:none; color:#ff5a1f; font-size:14px; cursor:pointer; padding:4px 0; margin-bottom:8px; }
+  #mask { position:fixed; inset:0; background:rgba(0,0,0,.45); display:none; z-index:50; align-items:flex-end; justify-content:center; }
+  #mask.show { display:flex; }
+  #sheet { background:#fff; width:100%; max-width:480px; border-radius:16px 16px 0 0; padding:18px 16px 26px; }
+  .me-head { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
+  .avatar { width:56px; height:56px; border-radius:50%; background:linear-gradient(135deg,#ff5a1f,#ff9a5a); color:#fff; display:flex; align-items:center; justify-content:center; font-size:24px; font-weight:700; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <div><h1>黑马点评</h1><div class="sub" id="apiLine">localhost:8081</div></div>
+    <button onclick="openSettings()">⚙ 设置</button>
+  </header>
+  <main id="view"></main>
+  <nav class="tabs">
+    <button id="tab-home" onclick="go('home')"><span class="ico">🏠</span>首页</button>
+    <button id="tab-discover" onclick="go('discover')"><span class="ico">📝</span>探店</button>
+    <button id="tab-me" onclick="go('me')"><span class="ico">👤</span>我的</button>
+  </nav>
+</div>
+<div id="toast"></div>
+<div id="mask" onclick="if(event.target===this)closeSettings()"><div id="sheet"></div></div>
+<script>
+"use strict";
+/* ---------- 基础 ---------- */
+const store = {
+  get api(){ return localStorage.getItem('hmdp_api') || 'http://localhost:8081'; },
+  set api(v){ localStorage.setItem('hmdp_api', v); },
+  get token(){ return localStorage.getItem('hmdp_token'); },
+  set token(v){ v ? localStorage.setItem('hmdp_token', v) : localStorage.removeItem('hmdp_token'); }
+};
+let toastTimer = null;
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(()=>t.classList.remove('show'), 2200);
+}
+async function api(path, {method='GET', body=null, auth=false} = {}){
+  const headers = {};
+  if (body) headers['Content-Type'] = 'application/json';
+  if (auth){
+    if (!store.token){ needLogin(); throw new Error('not logged in'); }
+    headers['authorization'] = store.token;
+  }
+  let res;
+  try { res = await fetch(store.api + path, {method, headers, body: body?JSON.stringify(body):undefined}); }
+  catch(e){ toast('连不上后端，检查地址和后端是否启动'); throw e; }
+  if (res.status === 401){ needLogin(); throw new Error('401'); }
+  const json = await res.json();
+  if (!json.success){ toast(json.errorMsg || '请求失败'); throw new Error(json.errorMsg); }
+  return json.data;
+}
+function needLogin(){ store.token = null; toast('请先登录'); go('me'); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function listOf(d){ return Array.isArray(d) ? d : (d && d.records) ? d.records : []; }
+/* ---------- 路由 ---------- */
+let curTab = 'home';
+function go(tab, param){
+  curTab = tab;
+  document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('on'));
+  document.getElementById('tab-'+tab).classList.add('on');
+  document.getElementById('apiLine').textContent = store.api.replace(/^https?:\/\//,'');
+  if (tab==='home') renderHome(param);
+  else if (tab==='discover') renderDiscover(param);
+  else renderMe();
+}
+/* ---------- 设置 ---------- */
+function openSettings(){
+  const s = document.getElementById('sheet');
+  s.innerHTML = `<div class="sec-t">后端地址</div>
+    <input class="inp" id="apiInput" value="${esc(store.api)}" placeholder="http://localhost:8081">
+    <button class="btn" onclick="saveSettings()">保存</button>
+    <div class="hint">本机后端默认 <code>http://localhost:8081</code>。页面用浏览器直接打开（file://）也能用，后端已开跨域。</div>`;
+  document.getElementById('mask').classList.add('show');
+}
+function closeSettings(){ document.getElementById('mask').classList.remove('show'); }
+function saveSettings(){
+  const v = document.getElementById('apiInput').value.trim().replace(/\/$/,'');
+  if (!v){ toast('地址不能为空'); return; }
+  store.api = v; closeSettings(); toast('已保存'); go(curTab);
+}
+/* ---------- 首页 ---------- */
+const typeEmoji = n => /美食|餐厅|火锅|茶/.test(n) ? '🍜' : /KTV|酒吧|轰趴/.test(n) ? '🎤' : /丽人|美发|美睫|美甲|SPA|美容/.test(n) ? '💇' : /健身|运动/.test(n) ? '🏋️' : /按摩|足疗/.test(n) ? '🦶' : /亲子/.test(n) ? '🧸' : '🏪';
+let curTypeId = null, curTypeName = '';
+async function renderHome(param){
+  const v = document.getElementById('view');
+  if (param && param.shopId) return renderShopDetail(param.shopId);
+  v.innerHTML = `<div class="sec-t">商户分类</div><div class="chips" id="chips"><div class="empty">加载中…</div></div><div id="shopList"></div>`;
+  try {
+    const types = listOf(await api('/shop-type/list'));
+    const box = document.getElementById('chips');
+    box.innerHTML = types.map(t=>`<button data-id="${t.id}" onclick="pickType(${t.id},'${esc(t.name)}')">${typeEmoji(t.name)} ${esc(t.name)}</button>`).join('');
+    if (types.length) pickType(types[0].id, types[0].name);
+  } catch(e){ /* toast 已弹 */ }
+}
+async function pickType(id, name){
+  curTypeId = id; curTypeName = name;
+  document.querySelectorAll('#chips button').forEach(b=>b.classList.toggle('on', +b.dataset.id===+id));
+  const box = document.getElementById('shopList');
+  box.innerHTML = `<div class="card"><div class="sec-t">${esc(name)}</div><div id="shops"><div class="empty">加载中…</div></div></div>`;
+  try {
+    const shops = listOf(await api(`/shop/of/type?typeId=${id}&current=1`));
+    document.getElementById('shops').innerHTML = shops.length ? shops.map(s=>`
+      <div class="shop" onclick="go('home',{shopId:${s.id}})">
+        <div class="pic">${s.images ? `<img src="${esc(s.images.split(',')[0])}" onerror="this.remove()">` : '🏪'}</div>
+        <div><div class="nm">${esc(s.name)}</div>
+        <div class="meta"><span class="score">${(s.score/10).toFixed(1)}分</span> · 月售${s.sold} · ${esc(s.area||'')}</div>
+        <div class="meta">¥${s.avgPrice}/人 · ${esc(s.address||'')}</div></div>
+      </div>`).join('') : `<div class="empty">这分类下暂无商户</div>`;
+  } catch(e){}
+}
+async function renderShopDetail(id){
+  const v = document.getElementById('view');
+  v.innerHTML = `<button class="back" onclick="go('home')">‹ 返回</button><div class="card"><div class="empty">加载中…</div></div>`;
+  try {
+    const s = await api(`/shop/${id}`);
+    const vouchers = listOf(await api(`/voucher/list/${id}`)).filter(x=>x.status===1);
+    v.innerHTML = `<button class="back" onclick="go('home')">‹ 返回</button>
+    <div class="card">
+      <div class="sec-t" style="font-size:17px">${esc(s.name)}</div>
+      <div class="kv"><span class="k">评分</span><span class="score" style="color:#ff5a1f;font-weight:700">${(s.score/10).toFixed(1)} 分</span></div>
+      <div class="kv"><span class="k">人均</span><span>¥${s.avgPrice}</span></div>
+      <div class="kv"><span class="k">地址</span><span>${esc(s.address||'-')}</span></div>
+      <div class="kv"><span class="k">营业时间</span><span>${esc(s.openHours||'-')}</span></div>
+      <div class="kv"><span class="k">销量 / 评论</span><span>${s.sold} / ${s.comments}</span></div>
+    </div>
+    <div class="card"><div class="sec-t">优惠券</div><div id="vbox">${
+      vouchers.length ? vouchers.map(x=>`
+        <div class="voucher"><div><div class="vt">${esc(x.title)}</div>
+        <div class="vp"><b>¥${(x.actualValue/100)}</b> 代金券 · 售价 ¥${(x.payValue/100)}${x.type===1?' · <span style="color:#ff5a1f">秒杀</span>':''}</div></div>
+        ${x.type===1?`<button class="btn sm" onclick="seckill(${x.id})">抢购</button>`:''}</div>`).join('')
+      : `<div class="empty">暂无优惠券</div>`}</div></div>`;
+  } catch(e){}
+}
+async function seckill(voucherId){
+  try { await api(`/voucher-order/seckill/${voucherId}`, {method:'POST', auth:true}); toast('抢购成功！'); }
+  catch(e){}
+}
+/* ---------- 探店 ---------- */
+async function renderDiscover(param){
+  const v = document.getElementById('view');
+  if (param && param.blogId) return renderBlogDetail(param.blogId);
+  v.innerHTML = `<div class="sec-t">探店热榜</div><div id="blogs"><div class="card"><div class="empty">加载中…</div></div></div>`;
+  try {
+    const blogs = listOf(await api('/blog/hot?current=1'));
+    document.getElementById('blogs').innerHTML = blogs.length ? blogs.map(b=>`
+      <div class="card blog" onclick="go('discover',{blogId:${b.id}})">
+        <div class="ph">📸</div>
+        <div class="t">${esc(b.title)}</div>
+        <div class="meta"><span>❤️ ${b.liked||0}</span><span>💬 ${b.comments||0}</span><span>${esc((b.createTime||'').slice(0,10))}</span></div>
+      </div>`).join('') : `<div class="card"><div class="empty">暂无探店内容</div></div>`;
+  } catch(e){}
+}
+async function renderBlogDetail(id){
+  const v = document.getElementById('view');
+  v.innerHTML = `<button class="back" onclick="go('discover')">‹ 返回</button><div class="card"><div class="empty">加载中…</div></div>`;
+  try {
+    const b = await api(`/blog/${id}`);
+    v.innerHTML = `<button class="back" onclick="go('discover')">‹ 返回</button>
+    <div class="card"><div class="sec-t" style="font-size:16px;line-height:1.5">${esc(b.title)}</div>
+      <div class="meta" style="font-size:12px;color:#999;margin-bottom:10px">❤️ ${b.liked||0} · 💬 ${b.comments||0} · ${esc((b.createTime||'').slice(0,16).replace('T',' '))}</div>
+      <div class="content-html">${b.content||''}</div>
+      <div style="margin-top:14px"><button class="btn ghost" onclick="likeBlog(${b.id}, this)">❤️ 点赞 (${b.liked||0})</button></div>
+    </div>`;
+  } catch(e){}
+}
+async function likeBlog(id, btn){
+  try { await api(`/blog/like/${id}`, {method:'PUT', auth:true}); toast('已点赞'); btn.disabled = true; }
+  catch(e){}
+}
+/* ---------- 我的 ---------- */
+async function renderMe(){
+  const v = document.getElementById('view');
+  if (!store.token){
+    v.innerHTML = `<div class="card"><div class="sec-t">登录 / 注册</div>
+      <div class="row"><input class="inp" id="email" placeholder="邮箱（这个版本用邮箱登录）"><button class="btn sm" id="codeBtn" style="white-space:nowrap" onclick="sendCode()">发验证码</button></div>
+      <input class="inp" id="code" placeholder="验证码" inputmode="numeric">
+      <button class="btn" onclick="doLogin()">登录</button>
+      <div class="hint">点「发验证码」后，邮件发不出去是正常的 —— 去你 Mac 终端跑：<br><code>grep '发送登录验证码' ~/dianping-setup/app.log | tail -1</code><br>就能看到验证码。</div></div>`;
+    return;
+  }
+  v.innerHTML = `<div class="card"><div class="empty">加载中…</div></div>`;
+  try {
+    const me = await api('/user/me', {auth:true});
+    const cnt = await api('/user/sign/count', {auth:true}).catch(()=>null);
+    v.innerHTML = `<div class="card"><div class="me-head">
+        <div class="avatar">${esc((me.nickName||'U')[0])}</div>
+        <div><div style="font-size:16px;font-weight:700">${esc(me.nickName||'用户')}</div>
+        <div style="font-size:12px;color:#999">id: ${me.id}</div></div></div>
+      <div class="kv"><span class="k">本月签到</span><span>${cnt==null?'-':cnt+' 天'}</span></div>
+      <div style="margin-top:12px;display:flex;gap:8px">
+        <button class="btn sm" onclick="doSign()">📅 签到</button>
+        <button class="btn sm ghost" onclick="store.token=null;go('me')">退出登录</button>
+      </div></div>`;
+  } catch(e){}
+}
+let codeCd = 0;
+async function sendCode(){
+  const email = document.getElementById('email').value.trim();
+  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ toast('先填正确的邮箱'); return; }
+  if (codeCd > 0) return;
+  try {
+    await api(`/user/code?phone=${encodeURIComponent(email)}`, {method:'POST'});
+    toast('验证码已生成，去终端日志里看');
+    codeCd = 60;
+    const btn = document.getElementById('codeBtn');
+    const iv = setInterval(()=>{ codeCd--; if(codeCd<=0){ clearInterval(iv); btn.disabled=false; btn.textContent='发验证码'; } else { btn.disabled=true; btn.textContent=codeCd+'s'; } }, 1000);
+  } catch(e){}
+}
+async function doLogin(){
+  const email = document.getElementById('email').value.trim();
+  const code = document.getElementById('code').value.trim();
+  if (!email || !code){ toast('邮箱和验证码都要填'); return; }
+  try {
+    const token = await api('/user/login', {method:'POST', body:{phone:email, code}});
+    store.token = token; toast('登录成功'); go('me');
+  } catch(e){}
+}
+async function doSign(){
+  try { await api('/user/sign', {method:'POST', auth:true}); toast('签到成功'); go('me'); }
+  catch(e){}
+}
+/* ---------- 启动 ---------- */
+go('home');
+</script>
+</body>
+</html>
