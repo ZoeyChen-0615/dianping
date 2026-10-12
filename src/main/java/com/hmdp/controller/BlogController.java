@@ -23,7 +23,7 @@ import java.util.List;
 
 /**
  * <p>
- * 前端控制器
+ *  REST controller
  * </p>
  *
  * @author 虎哥
@@ -59,12 +59,12 @@ public class BlogController {
 
     @GetMapping("/of/me")
     public Result queryMyBlog(@RequestParam(value = "current", defaultValue = "1") Integer current) {
-        // 获取登录用户
+        // Get the logged-in user
         UserDTO user = UserHolder.getUser();
-        // 根据用户查询
+        // Query by user
         Page<Blog> page = blogService.query()
                 .eq("user_id", user.getId()).page(new Page<>(current, SystemConstants.MAX_PAGE_SIZE));
-        // 获取当前页数据
+        // Get the current page records
         List<Blog> records = page.getRecords();
         return Result.ok(records);
     }
@@ -73,10 +73,10 @@ public class BlogController {
     public Result queryBlogByUserId(
             @RequestParam(value = "current", defaultValue = "1") Integer current,
             @RequestParam("id") Long id) {
-        // 根据用户查询
+        // Query by user
         Page<Blog> page = blogService.query()
                 .eq("user_id", id).page(new Page<>(current, SystemConstants.MAX_PAGE_SIZE));
-        // 获取当前页数据
+        // Get the current page records
         List<Blog> records = page.getRecords();
         return Result.ok(records);
     }

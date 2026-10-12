@@ -28,66 +28,66 @@ public class Blog implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 主键
+     * Primary key
      */
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
     /**
-     * 商户id
+     * Shop ID
      */
     private Long shopId;
     /**
-     * 用户id
+     * User ID
      */
     private Long userId;
     /**
-     * 用户图标
+     * User avatar
      */
     @TableField(exist = false)
     private String icon;
     /**
-     * 用户姓名
+     * Username
      */
     @TableField(exist = false)
     private String name;
     /**
-     * 是否点赞过了
+     * Whether the current user has liked it
      */
     @TableField(exist = false)
     private Boolean isLike;
 
     /**
-     * 标题
+     * Title
      */
     private String title;
 
     /**
-     * 探店的照片，最多9张，多张以","隔开
+     * Visit photos, up to 9, comma-separated
      */
     private String images;
 
     /**
-     * 探店的文字描述
+     * Text description of the visit
      */
     private String content;
 
     /**
-     * 点赞数量
+     * Like count
      */
     private Integer liked;
 
     /**
-     * 评论数量
+     * Comment count
      */
     private Integer comments;
 
     /**
-     * 创建时间
+     * Created at
      */
     private LocalDateTime createTime;
 
     /**
-     * 更新时间
+     * Updated at
      */
     private LocalDateTime updateTime;
 

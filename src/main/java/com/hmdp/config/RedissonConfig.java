@@ -11,7 +11,7 @@ public class RedissonConfig {
     @Bean
     public RedissonClient redissonClient() {
         Config config = new Config();
-        config.useSingleServer()//说明当前用的是单节点的redis
+        config.useSingleServer() // single-node Redis
                 .setAddress("redis://localhost:6379");
         return Redisson.create(config);
     }

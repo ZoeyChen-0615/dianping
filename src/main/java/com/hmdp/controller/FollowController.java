@@ -9,7 +9,7 @@ import javax.annotation.Resource;
 
 /**
  * <p>
- *  前端控制器
+ *  REST controller
  * </p>
  *
  * @author 虎哥
@@ -20,19 +20,19 @@ import javax.annotation.Resource;
 public class FollowController {
     @Resource
     private IFollowService followService;
-    //判断当前用户是否关注了该博主,加载页面的时候就会发起请求
+    // Check whether the current user follows this blogger (fired on page load)
     @GetMapping("/or/not/{id}")
     public Result isFollow(@PathVariable("id") Long followUserId) {
         return followService.isFollow(followUserId);
     }
 
-    //实现取关/关注
+    // Follow / unfollow
     @PutMapping("/{id}/{isFollow}")
     public Result follow(@PathVariable("id") Long followUserId, @PathVariable("isFollow") Boolean isFellow) {
         return followService.follow(followUserId,isFellow);
     }
 
-//    共同关注代码
+//    common-follows code
     @GetMapping("/common/{id}")
     public Result followCommons(@PathVariable Long id){
         return followService.followCommons(id);

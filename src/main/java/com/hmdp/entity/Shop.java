@@ -28,78 +28,78 @@ public class Shop implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 主键
+     * Primary key
      */
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
     /**
-     * 商铺名称
+     * Shop name
      */
     private String name;
 
     /**
-     * 商铺类型的id
+     * Shop type ID
      */
     private Long typeId;
 
     /**
-     * 商铺图片，多个图片以','隔开
+     * Shop images, comma-separated
      */
     private String images;
 
     /**
-     * 商圈，例如陆家嘴
+     * Business district, e.g. Lujiazui
      */
     private String area;
 
     /**
-     * 地址
+     * Address
      */
     private String address;
 
     /**
-     * 经度
+     * Longitude
      */
     private Double x;
 
     /**
-     * 维度
+     * Latitude
      */
     private Double y;
 
     /**
-     * 均价，取整数
+     * Average price, rounded to integer
      */
     private Long avgPrice;
 
     /**
-     * 销量
+     * Sales volume
      */
     private Integer sold;
 
     /**
-     * 评论数量
+     * Comment count
      */
     private Integer comments;
 
     /**
-     * 评分，1~5分，乘10保存，避免小数
+     * Rating, 1-5, stored multiplied by 10 to avoid decimals
      */
     private Integer score;
 
     /**
-     * 营业时间，例如 10:00-22:00
+     * Business hours, e.g. 10:00-22:00
      */
     private String openHours;
 
     /**
-     * 创建时间
+     * Created at
      */
     private LocalDateTime createTime;
 
     /**
-     * 更新时间
+     * Updated at
      */
     private LocalDateTime updateTime;
 

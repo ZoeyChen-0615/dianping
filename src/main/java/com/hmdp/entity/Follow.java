@@ -27,23 +27,23 @@ public class Follow implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 主键
+     * Primary key
      */
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
     /**
-     * 用户id
+     * User ID
      */
     private Long userId;
 
     /**
-     * 关联的用户id
+     * Associated user ID
      */
     private Long followUserId;
 
     /**
-     * 创建时间
+     * Created at
      */
     private LocalDateTime createTime;
 

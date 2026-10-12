@@ -28,34 +28,34 @@ public class ShopType implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 主键
+     * Primary key
      */
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
     /**
-     * 类型名称
+     * Type name
      */
     private String name;
 
     /**
-     * 图标
+     * Icon
      */
     private String icon;
 
     /**
-     * 顺序
+     * Sort order
      */
     private Integer sort;
 
     /**
-     * 创建时间
+     * Created at
      */
     @JsonIgnore
     private LocalDateTime createTime;
 
     /**
-     * 更新时间
+     * Updated at
      */
     @JsonIgnore
     private LocalDateTime updateTime;

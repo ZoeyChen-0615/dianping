@@ -5,7 +5,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 
 /**
  * <p>
- * 秒杀优惠券表，与优惠券是一对一关系 Mapper 接口
+ *  Flash-sale voucher table, one-to-one with voucher — Mapper interface
  * </p>
  *
  * @author 虎哥

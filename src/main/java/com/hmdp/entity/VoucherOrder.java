@@ -27,53 +27,53 @@ public class VoucherOrder implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 主键
+     * Primary key
      */
     @TableId(value = "id", type = IdType.INPUT)
     private Long id;
 
     /**
-     * 下单的用户id
+     * Ordering user ID
      */
     private Long userId;
 
     /**
-     * 购买的代金券id
+     * Purchased voucher ID
      */
     private Long voucherId;
 
     /**
-     * 支付方式 1：余额支付；2：支付宝；3：微信
+     * Payment method, 1: balance, 2: Alipay, 3: WeChat Pay
      */
     private Integer payType;
 
     /**
-     * 订单状态，1：未支付；2：已支付；3：已核销；4：已取消；5：退款中；6：已退款
+     * Order status, 1: unpaid, 2: paid, 3: redeemed, 4: cancelled, 5: refunding, 6: refunded
      */
     private Integer status;
 
     /**
-     * 下单时间
+     * Ordered at
      */
     private LocalDateTime createTime;
 
     /**
-     * 支付时间
+     * Paid at
      */
     private LocalDateTime payTime;
 
     /**
-     * 核销时间
+     * Redeemed at
      */
     private LocalDateTime useTime;
 
     /**
-     * 退款时间
+     * Refunded at
      */
     private LocalDateTime refundTime;
 
     /**
-     * 更新时间
+     * Updated at
      */
     private LocalDateTime updateTime;
 

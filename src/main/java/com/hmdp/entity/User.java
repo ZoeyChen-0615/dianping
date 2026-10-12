@@ -28,38 +28,38 @@ public class User implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 主键
+     * Primary key
      */
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
     /**
-     * 手机号码
+     * Phone number or email used for login
      */
     private String phone;
 
     /**
-     * 密码，加密存储
+     * Password, stored encrypted
      */
     private String password;
 
     /**
-     * 昵称，默认是随机字符
+     * Nickname, random by default
      */
     private String nickName;
 
     /**
-     * 用户头像
+     * User avatar
      */
     private String icon = "";
 
     /**
-     * 创建时间
+     * Created at
      */
     private LocalDateTime createTime;
 
     /**
-     * 更新时间
+     * Updated at
      */
     private LocalDateTime updateTime;
 

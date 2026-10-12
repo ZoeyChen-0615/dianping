@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 
 /**
  * <p>
- * 秒杀优惠券表，与优惠券是一对一关系
+ *  Flash-sale voucher table, one-to-one with voucher
  * </p>
  *
  * @author 虎哥
@@ -27,33 +27,33 @@ public class SeckillVoucher implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 关联的优惠券的id
+     * Associated voucher ID
      */
     @TableId(value = "voucher_id", type = IdType.INPUT)
     private Long voucherId;
 
     /**
-     * 库存
+     * Stock
      */
     private Integer stock;
 
     /**
-     * 创建时间
+     * Created at
      */
     private LocalDateTime createTime;
 
     /**
-     * 生效时间
+     * Valid from
      */
     private LocalDateTime beginTime;
 
     /**
-     * 失效时间
+     * Valid until
      */
     private LocalDateTime endTime;
 
     /**
-     * 更新时间
+     * Updated at
      */
     private LocalDateTime updateTime;
 

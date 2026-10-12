@@ -27,53 +27,53 @@ public class BlogComments implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 主键
+     * Primary key
      */
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
     /**
-     * 用户id
+     * User ID
      */
     private Long userId;
 
     /**
-     * 探店id
+     * Blog ID
      */
     private Long blogId;
 
     /**
-     * 关联的1级评论id，如果是一级评论，则值为0
+     * Parent top-level comment ID (0 for top-level comments)
      */
     private Long parentId;
 
     /**
-     * 回复的评论id
+     * Replied-to comment ID
      */
     private Long answerId;
 
     /**
-     * 回复的内容
+     * Reply content
      */
     private String content;
 
     /**
-     * 点赞数
+     * Like count
      */
     private Integer liked;
 
     /**
-     * 状态，0：正常，1：被举报，2：禁止查看
+     * Status, 0: normal, 1: reported, 2: hidden
      */
     private Boolean status;
 
     /**
-     * 创建时间
+     * Created at
      */
     private LocalDateTime createTime;
 
     /**
-     * 更新时间
+     * Updated at
      */
     private LocalDateTime updateTime;
 

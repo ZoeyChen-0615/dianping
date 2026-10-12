@@ -13,7 +13,7 @@ import javax.annotation.Resource;
 
 /**
  * <p>
- * 前端控制器
+ *  REST controller
  * </p>
  *
  * @author 虎哥
@@ -27,9 +27,9 @@ public class ShopController {
     public IShopService shopService;
 
     /**
-     * 根据id查询商铺信息
-     * @param id 商铺id
-     * @return 商铺详情数据
+     * Get shop info by ID
+     * @param id shop ID
+     * @return shop details
      */
     @GetMapping("/{id}")
     public Result queryShopById(@PathVariable("id") Long id) {
@@ -37,34 +37,34 @@ public class ShopController {
     }
 
     /**
-     * 新增商铺信息
-     * @param shop 商铺数据
-     * @return 商铺id
+     * Create a new shop
+     * @param shop shop data
+     * @return shop ID
      */
     @PostMapping
     public Result saveShop(@RequestBody Shop shop) {
-        // 写入数据库
+        // Write to the database
         shopService.save(shop);
-        // 返回店铺id
+        // Return the shop ID
         return Result.ok(shop.getId());
     }
 
     /**
-     * 更新商铺信息
-     * @param shop 商铺数据
-     * @return 无
+     * Update shop info
+     * @param shop shop data
+     * @return nothing
      */
     @PutMapping
     public Result updateShop(@RequestBody Shop shop) {
-        // 写入数据库
+        // Write to the database
         return shopService.update(shop);
     }
 
     /**
-     * 根据商铺类型分页查询商铺信息
-     * @param typeId 商铺类型
-     * @param current 页码
-     * @return 商铺列表
+     * List shops by type with pagination
+     * @param typeId shop type
+     * @param current page number
+     * @return shop list
      */
     @GetMapping("/of/type")
     public Result queryShopByType(
@@ -77,21 +77,21 @@ public class ShopController {
     }
 
     /**
-     * 根据商铺名称关键字分页查询商铺信息
-     * @param name 商铺名称关键字
-     * @param current 页码
-     * @return 商铺列表
+     * Search shops by name keyword with pagination
+     * @param name shop name keyword
+     * @param current page number
+     * @return shop list
      */
     @GetMapping("/of/name")
     public Result queryShopByName(
             @RequestParam(value = "name", required = false) String name,
             @RequestParam(value = "current", defaultValue = "1") Integer current
     ) {
-        // 根据类型分页查询
+        // Query by type with pagination
         Page<Shop> page = shopService.query()
                 .like(StrUtil.isNotBlank(name), "name", name)
                 .page(new Page<>(current, SystemConstants.MAX_PAGE_SIZE));
-        // 返回数据
+        // Return the data
         return Result.ok(page.getRecords());
     }
 }
