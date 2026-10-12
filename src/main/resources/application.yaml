@@ -19,10 +19,10 @@ spring:
         time-between-eviction-runs: 10s
     database: 6
   jackson:
-    default-property-inclusion: non_null # JSON处理时忽略非空字段
+    default-property-inclusion: non_null # Ignore null fields in JSON serialization
   rabbitmq:
     host: localhost
-    port: 5672 # AMQP 协议端口；15672 是管理界面端口，不要填错
+    port: 5672 # AMQP protocol port; 15672 is the management UI port, do not mix them up
     username: guest
     password: guest
     virtual-host: /
@@ -40,14 +40,14 @@ spring:
         max-attempts: 3
         max-interval: 10000ms
         multiplier: 1
-# 发件邮箱配置：本地没有配的话，验证码会打印在控制台日志并写入 Redis，
-# 用 redis-cli -n 6 get "login:code:<邮箱>" 即可取到，不影响登录流程
+# Sender mailbox config: if unconfigured, the code is printed to the console log and written to Redis;
+# fetch it via: redis-cli -n 6 get "login:code:<email>" — login still works
 hmdp:
   mail:
-    user: ""      # 发件 QQ 邮箱，例如 yourmail@qq.com
-    password: ""  # QQ 邮箱 SMTP 授权码（16 位，邮箱设置 -> 账户 -> 开启 SMTP 获取）
+    user: ""      # Sender QQ mailbox, e.g. yourmail@qq.com
+    password: ""  # QQ Mail SMTP auth code (16 chars: mailbox Settings -> Accounts -> enable SMTP)
 mybatis-plus:
-  type-aliases-package: com.hmdp.entity # 别名扫描包
+  type-aliases-package: com.hmdp.entity # MyBatis type-alias scan package
 logging:
   level:
     com.hmdp: debug

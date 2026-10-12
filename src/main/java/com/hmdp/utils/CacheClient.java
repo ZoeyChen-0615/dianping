@@ -21,30 +21,28 @@ import static com.hmdp.utils.RedisConstants.LOCK_SHOP_KEY;
 @Slf4j
 @Component
 public class CacheClient {
-    //来自鄢坤的更改
-    //更改2
-    //更改3
+    // Changes by Yan Kun
     @Resource
     private StringRedisTemplate stringRedisTemplate;
     private static final ExecutorService CACHE_REBUILD_EXECUTOR = Executors.newFixedThreadPool(10);
 
-//    方法1：将任意Java对象序列化为JSON，并存储到String类型的Key中，并可以设置TTL过期时间
+// Method 1: serialize any Java object to JSON and store it under a String key with a TTL
     public void set(String key, Object value, Long time, TimeUnit timeUnit) {
         stringRedisTemplate.opsForValue().set(key, JSONUtil.toJsonStr(value), time, timeUnit);
     }
-//    方法2：将任意Java对象序列化为JSON，并存储在String类型的Key中，并可以设置逻辑过期时间，用于处理缓存击穿问题
+// Method 2: same, but with a logical expiration to guard against cache breakdown
     public void setWithLogicExpire(String key, Object value, Long time, TimeUnit timeUnit) {
         RedisData<Object> redisData = new RedisData<>();
         redisData.setData(value);
         redisData.setExpireTime(LocalDateTime.now().plusSeconds(timeUnit.toSeconds(time)));
         stringRedisTemplate.opsForValue().set(key, JSONUtil.toJsonStr(redisData));
     }
-//    3.根据指定的Key查询缓存，并反序列化为指定类型，利用缓存空值的方式解决缓存穿透问题
+// Method 3: fetch by key and deserialize to the given type; guards against cache penetration by caching nulls
     public <R, ID> R queryWithPassThrough(String keyPrefix, ID id, Class<R> type, Function<ID, R> dbFallback, Long time, TimeUnit timeUnit) {
-        //先从Redis中查，这里的常量值是固定的前缀 + 店铺id
+        // Check Redis first; the key is a fixed prefix + ID
         String key = keyPrefix + id;
         String json = stringRedisTemplate.opsForValue().get(key);
-        //如果不为空（查询到了），则转为R类型直接返回
+        // Cache hit: convert to R and return directly
         if (StrUtil.isNotBlank(json)) {
             return JSONUtil.toBean(json, type);
         }
@@ -52,45 +50,45 @@ public class CacheClient {
             return null;
         }
 
-        //否则去数据库中查，查询逻辑用我们参数中注入的函数
+        // Otherwise query the database via the injected fallback function
         R r = dbFallback.apply(id);
 
-        //查不到，则将空值写入Redis
+        // Miss: cache the null marker in Redis
         if (r == null) {
             stringRedisTemplate.opsForValue().set(key, "", CACHE_NULL_TTL, TimeUnit.MINUTES);
             return null;
         }
-        //查到了则转为json字符串
+        // Hit: serialize to JSON
         String jsonStr = JSONUtil.toJsonStr(r);
-        //并存入redis，设置TTL
+        // Store in Redis with a TTL
         this.set(key, jsonStr, time, timeUnit);
-        //最终把查询到的商户信息返回给前端
+        // Finally return the result to the caller
         return r;
     }
 
     public <R, ID> R queryWithLogicalExpire(String keyPrefix, ID id, Class<R> type, Function<ID, R> dbFallback, Long time, TimeUnit timeUnit) {
-        //1. 从redis中查询商铺缓存
+        // 1. Read the cache from Redis
         String key = keyPrefix + id;
         String json = stringRedisTemplate.opsForValue().get(key);
-        //2. 如果未命中，则返回空
+        // 2. Miss: return null
         if (StrUtil.isBlank(json)) {
             return null;
         }
-        //3. 命中，将json反序列化为对象
+        // 3. Hit: deserialize the JSON
         RedisData redisData = JSONUtil.toBean(json, RedisData.class);
         R r = JSONUtil.toBean((JSONObject) redisData.getData(), type);
         LocalDateTime expireTime = redisData.getExpireTime();
-        //4. 判断是否过期
+        // 4. Check whether it is expired
         if (expireTime.isAfter(LocalDateTime.now())) {
-            //5. 未过期，直接返回商铺信息
+            // 5. Not expired: return directly
             return r;
         }
-        //6. 过期，尝试获取互斥锁
+        // 6. Expired: try to acquire the mutex
         String lockKey = LOCK_SHOP_KEY + id;
         boolean flag = tryLock(lockKey);
-        //7. 获取到了锁
+        // 7. Lock acquired
         if (flag) {
-            //8. 开启独立线程
+            // 8. Start a background thread
             CACHE_REBUILD_EXECUTOR.submit(() -> {
                 try {
                     R tmp = dbFallback.apply(id);
@@ -101,18 +99,18 @@ public class CacheClient {
                     unlock(lockKey);
                 }
             });
-            //9. 直接返回商铺信息
+            // 9. Return directly
             return r;
         }
-        //10. 未获取到锁，直接返回商铺信息
+        // 10. Lock not acquired: return directly
         return r;
     }
 
     public <R, ID> R queryWithMutex(String keyPrefix, ID id, Class<R> type, Function<ID, R> dbFallback, Long time, TimeUnit timeUnit) {
-        //先从Redis中查，这里的常量值是固定的前缀 + 店铺id
+        // Check Redis first; the key is a fixed prefix + ID
         String key = keyPrefix + id;
         String json = stringRedisTemplate.opsForValue().get(key);
-        //如果不为空（查询到了），则转为Shop类型直接返回
+        // Cache hit: convert to the target type and return directly
         if (StrUtil.isNotBlank(json)) {
             return JSONUtil.toBean(json, type);
         }
@@ -122,19 +120,19 @@ public class CacheClient {
         R r = null;
         String lockKey = LOCK_SHOP_KEY + id;
         try {
-            //否则去数据库中查
+            // Acquire the mutex
             boolean flag = tryLock(lockKey);
             if (!flag) {
                 Thread.sleep(50);
                 return queryWithMutex(keyPrefix, id, type, dbFallback, time, timeUnit);
             }
             r = dbFallback.apply(id);
-            //查不到，则将空值写入Redis
+            // Miss: cache the null marker in Redis
             if (r == null) {
                 stringRedisTemplate.opsForValue().set(key, "", CACHE_NULL_TTL, TimeUnit.MINUTES);
                 return null;
             }
-            //并存入redis，设置TTL
+            // Store in Redis with a TTL
             this.set(key, r, time, timeUnit);
         } catch (InterruptedException e) {
             throw new RuntimeException(e);

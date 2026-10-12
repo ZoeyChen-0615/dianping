@@ -34,7 +34,7 @@ import static com.hmdp.utils.RedisConstants.*;
 
 /**
  * <p>
- * 服务实现类
+ *  Service implementation
  * </p>
  *
  * @author 虎哥
@@ -45,102 +45,102 @@ import static com.hmdp.utils.RedisConstants.*;
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IUserService {
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
-    //发短信
+    // Send the verification code
     @Override
     public Result sendCode(String phone, HttpSession session) throws MessagingException {
-        // 1. 判断是否在一级限制条件内
+        // 1. Check the tier-1 rate limit
         Boolean oneLevelLimit = stringRedisTemplate.opsForSet().isMember(ONE_LEVERLIMIT_KEY + phone, "1");
         if (oneLevelLimit != null && oneLevelLimit) {
-            // 在一级限制条件内，不能发送验证码
-            return Result.fail("您需要等5分钟后再请求");
+            // Tier-1 limited: no code can be sent
+            return Result.fail("Please wait 5 minutes before requesting again");
         }
 
-// 2. 判断是否在二级限制条件内
+// 2. Check the tier-2 rate limit
         Boolean twoLevelLimit = stringRedisTemplate.opsForSet().isMember(TWO_LEVERLIMIT_KEY + phone, "1");
         if (twoLevelLimit != null && twoLevelLimit) {
-            // 在二级限制条件内，不能发送验证码
-            return Result.fail("您需要等20分钟后再请求");
+            // Tier-2 limited: no code can be sent
+            return Result.fail("Please wait 20 minutes before requesting again");
         }
 
-// 3. 检查过去1分钟内发送验证码的次数
+// 3. Count codes sent in the last minute
         long oneMinuteAgo = System.currentTimeMillis() - 60 * 1000;
         long count_oneminute = stringRedisTemplate.opsForZSet().count(SENDCODE_SENDTIME_KEY + phone, oneMinuteAgo, System.currentTimeMillis());
         if (count_oneminute >= 1) {
-            // 过去1分钟内已经发送了1次，不能再发送验证码
-            return Result.fail("距离上次发送时间不足1分钟，请1分钟后重试");
+            // Already sent once in the last minute
+            return Result.fail("Less than a minute since the last code, please retry in a minute");
         }
 
-        // 4. 检查发送验证码的次数
+        // 4. Count codes sent in the last 5 minutes
         long fiveMinutesAgo = System.currentTimeMillis() - 5 * 60 * 1000;
         long count_fiveminute = stringRedisTemplate.opsForZSet().count(SENDCODE_SENDTIME_KEY + phone, fiveMinutesAgo, System.currentTimeMillis());
         if (count_fiveminute % 3 == 2 && count_fiveminute > 5) {
-            // 发送了8, 11, 14, ...次，进入二级限制
+            // Sent 8, 11, 14, ... times: escalate to tier-2 limit
             stringRedisTemplate.opsForSet().add(TWO_LEVERLIMIT_KEY + phone, "1");
             stringRedisTemplate.expire(TWO_LEVERLIMIT_KEY + phone, 20, TimeUnit.MINUTES);
-            return Result.fail("接下来如需再发送，请等20分钟后再请求");
+            return Result.fail("Please wait 20 minutes before requesting another code");
         } else if (count_fiveminute == 5) {
-            // 过去5分钟内已经发送了5次，进入一级限制
+            // Sent 5 times in 5 minutes: apply tier-1 limit
             stringRedisTemplate.opsForSet().add(ONE_LEVERLIMIT_KEY + phone, "1");
             stringRedisTemplate.expire(ONE_LEVERLIMIT_KEY + phone, 5, TimeUnit.MINUTES);
-            return Result.fail("5分钟内已经发送了5次，接下来如需再发送请等待5分钟后重试");
+            return Result.fail("Sent 5 times in 5 minutes, please wait 5 minutes before retrying");
         }
 
-          //生成验证码
+          // Generate the code
         String code = MailUtils.achieveCode();
 
-         //将生成的验证码保持到redis
+         // Store the code in Redis
         stringRedisTemplate.opsForValue().set(LOGIN_CODE_KEY+phone,code,LOGIN_CODE_TTL, TimeUnit.MINUTES);
 
-        log.info("发送登录验证码：{}", code);
-         //发送验证码（本地演示环境邮件服务不可用，失败只记日志，不影响验证码下发）
+        log.info("Login verification code: {}", code);
+         // Send the code (no working SMTP in this demo env: failures are only logged, the code is still issued)
         try {
             MailUtils.sendtoMail(phone, code);
         } catch (Exception e) {
-            log.warn("邮件发送失败（演示环境忽略），验证码已写入Redis/日志：{}", code);
+            log.warn("Mail send failed (ignored in demo env), code written to Redis/log: {}", code);
         }
 
-        // 更新发送时间和次数
+        // Record the send time and count
         stringRedisTemplate.opsForZSet().add(SENDCODE_SENDTIME_KEY + phone, System.currentTimeMillis() + "", System.currentTimeMillis());
 
         return Result.ok();
 }
 
-    //登录注册
+    // Login / sign-up
     @Override
     public Result login(LoginFormDTO loginForm, HttpSession session) {
         String phone = loginForm.getPhone();
         String code = loginForm.getCode();
-        //检验手机号是否正确，不同的请求就应该再次去进行确认
+        // Validate the email; every request must be re-validated
         if(RegexUtils.isEmailInvalid(phone))
         {
-            //如果无效，则直接返回
-            return Result.fail("邮箱格式不正确！！");
+            // Invalid: return immediately
+            return Result.fail("Invalid email format");
         }
-        //从redis中读取验证码，并进行校验
+        // Read the code from Redis and verify it
         String Cachecode = stringRedisTemplate.opsForValue().get(LOGIN_CODE_KEY+phone);
-        //1. 校验邮箱
+        // 1. Validate the email
         if (RegexUtils.isEmailInvalid(phone)) {
-            return Result.fail("邮箱格式不正确！！");
+            return Result.fail("Invalid email format");
         }
-        //2. 不符合格式则报错
+        // 2. Reject mismatched codes
         if (Cachecode==null || !code.equals(Cachecode))
         {
-            return Result.fail("无效的验证码");
+            return Result.fail("Invalid verification code");
         }
-        //如果上述都没有问题的话，就从数据库中查询该用户的信息
+        // All good: look up the user in the database
 
         //select * from tb_user where phone = ?
         User user = query().eq("phone", phone).one();
 
-        //判断用户是否存在
+        // Check whether the user exists
         if (user==null)
         {
             user = createuser(phone);
         }
-        //保存用户信息到Redis中
+        // Save the user info to Redis
         String token = UUID.randomUUID().toString();
 
-        //7.2 将UserDto对象转为HashMap存储
+        // 7.2 Convert the UserDTO into a hash map
         UserDTO userDTO = BeanUtil.copyProperties(user, UserDTO.class);
         HashMap<String, String > userMap = new HashMap<>();
         userMap.put("id", String.valueOf(userDTO.getId()));
@@ -148,66 +148,66 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         userMap.put("icon", userDTO.getIcon());
 
 
-        //7.3 存储
+        // 7.3 Store it
         String tokenKey = LOGIN_USER_KEY + token;
         stringRedisTemplate.opsForHash().putAll(tokenKey, userMap);
 
-        //7.4 设置token有效期为30分钟
+        // 7.4 Token TTL: 30 minutes
         stringRedisTemplate.expire(tokenKey, LOGIN_USER_TTL, TimeUnit.MINUTES);
 
-        //7.5 登陆成功则删除验证码信息
+        // 7.5 Delete the code after a successful login
         stringRedisTemplate.delete(LOGIN_CODE_KEY + phone);
 
-        //8. 返回token
+        // 8. Return the token
         return Result.ok(token);
     }
 
     private User createuser(String phone) {
-        //创建用户
+        // Create the user
         User user = new User();
         user.setPhone(phone);
         user.setNickName(SystemConstants.USER_NICK_NAME_PREFIX +RandomUtil.randomString(10));
-        //保存用户 insert into tb_user(phone,nick_name) values(?,?)
+        // Save the user: insert into tb_user(phone,nick_name) values(?,?)
         save(user);
         return user;
     }
 
     @Override
     public Result sign() {
-        //1. 获取当前用户
+        // 1. Get the current user
         Long userId = UserHolder.getUser().getId();
-        //2. 获取日期
+        // 2. Get the date
         LocalDateTime now = LocalDateTime.now();
-        //3. 拼接key
+        // 3. Build the key
         String keySuffix = now.format(DateTimeFormatter.ofPattern(":yyyyMM"));
         String key = USER_SIGN_KEY + userId + keySuffix;
-        //4. 获取今天是当月第几天(1~31)
+        // 4. Day of month (1-31)
         int dayOfMonth = now.getDayOfMonth();
-        //5. 写入Redis  BITSET key offset 1
+        // 5. Write to Redis: BITSET key offset 1
         stringRedisTemplate.opsForValue().setBit(key, dayOfMonth - 1, true);
         return Result.ok();
     }
 
     @Override
     public Result signCount() {
-        //1. 获取当前用户
+        // 1. Get the current user
         Long userId = UserHolder.getUser().getId();
-        //2. 获取日期
+        // 2. Get the date
         LocalDateTime now = LocalDateTime.now();
-        //3. 拼接key
+        // 3. Build the key
         String keySuffix = now.format(DateTimeFormatter.ofPattern(":yyyyMM"));
         String key = USER_SIGN_KEY + userId + keySuffix;
-        //4. 获取今天是当月第几天(1~31)
+        // 4. Day of month (1-31)
         int dayOfMonth = now.getDayOfMonth();
 
 
-        //5. 获取截止至今日的签到记录  BITFIELD key GET uDay 0
+        // 5. Read the check-in bits up to today: BITFIELD key GET uDay 0
         List<Long> result = stringRedisTemplate.opsForValue().bitField(key, BitFieldSubCommands.create()
                 .get(BitFieldSubCommands.BitFieldType.unsigned(dayOfMonth)).valueAt(0));
         if (result == null || result.isEmpty()) {
             return Result.ok(0);
         }
-        //6. 循环遍历
+        // 6. Walk the bits
         int count = 0;
         Long num = result.get(0);
         while (true) {
@@ -215,7 +215,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
                 break;
             } else
                 count++;
-            //数字右移，抛弃最后一位
+            // Shift right, dropping the last bit
             num = num>>>1;
         }
         return Result.ok(count);

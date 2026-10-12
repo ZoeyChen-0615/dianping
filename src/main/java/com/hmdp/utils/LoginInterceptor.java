@@ -18,11 +18,11 @@ public class LoginInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
-        // 放行 CORS 预检请求：浏览器不会在 OPTIONS 预检里带 authorization 头，不能按未登录拦截
+        // Let CORS preflight (OPTIONS) through: browsers never send the authorization header on preflight, so it must not be treated as unauthenticated
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
             return true;
         }
-//        1.判断是否需要拦截
+// 1. Decide whether to intercept
         if (UserHolder.getUser()==null)
         {
             response.setStatus(401);
@@ -33,7 +33,7 @@ public class LoginInterceptor implements HandlerInterceptor {
 
     @Override
     public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) throws Exception {
-        //移除threadlocal用户，避免内存泄漏
+        // Remove the ThreadLocal user to avoid memory leaks
         UserHolder.removeUser();
     }
 }
