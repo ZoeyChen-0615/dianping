@@ -1,60 +1,36 @@
-# dianping（本地可运行版）
+# 黑马点评 dianping
 
-黑马点评 —— 简化版大众点评。点评类项目：邮箱验证码登录、探店点评、优惠券秒杀（RabbitMQ + 令牌桶限流）、
-每日签到、好友关注、粉丝关注博主后主动推送博客等模块。
+简化版大众点评 —— Spring Boot 学习项目。功能：商户浏览/详情、优惠券、秒杀下单、探店博客、点赞、签到、邮箱验证码登录。
 
-本仓库是原项目 `haopengmai/dianping` 的可运行修复版，主要改动见下方「相对原仓库的修复」。
+本仓库是 haopengmai/dianping 的 fork，做了本地可运行改造（见文末）。
 
-## 本地运行（Mac，Homebrew）
+## 目录结构
 
-```bash
-# 1. 安装依赖
-brew install --cask temurin@8   # JDK 8
-brew install maven mysql redis rabbitmq
-brew services start mysql redis rabbitmq
+- `src/` —— 后端（Spring Boot 2.3，端口 8081）
+- `src/main/resources/db/hmdp.sql` —— 数据库初始化脚本
+- `frontend/index.html` —— 前端（单文件手机端页面，直接用浏览器打开）
+- `start-backend.bat` —— Windows 一键启动后端
 
-# 2. 建库并导入数据
-mysql -u root -e "CREATE DATABASE hmdp DEFAULT CHARACTER SET utf8mb4;"
-mysql -u root hmdp < src/main/resources/db/hmdp.sql
+## 环境要求
 
-# 3. 按需修改 src/main/resources/application.yaml
-#    - MySQL 用户名/密码（默认 root / 123456）
-#    - RabbitMQ（默认 localhost:5672，guest/guest）
-#    - hmdp.mail.user / hmdp.mail.password（发件 QQ 邮箱 + SMTP 授权码；不配也能跑，见下）
+JDK 8、Maven 3.6+、MySQL 8、Redis 6.2+（需 GEOSEARCH）、RabbitMQ 3.x。
+Windows 注意：Redis 官方无 Windows 版，用 WSL2 / Docker / Memurai。
 
-# 4. 启动
-export JAVA_HOME=$(/usr/libexec/java_home -v 1.8)
-mvn spring-boot:run
-```
+## 启动步骤
 
-后端跑在 http://localhost:8081。
+1. `CREATE DATABASE hmdp CHARACTER SET utf8mb4;` 后导入 `src/main/resources/db/hmdp.sql`。
+2. 按本机情况改 `src/main/resources/application.yaml`（MySQL 密码、Redis、RabbitMQ）。
+3. 项目根目录启动：Windows 双击 `start-backend.bat` 或 `mvn spring-boot:run`；Mac/Linux 跑 `mvn spring-boot:run`。看到 `Started HmDianPingApplication` 即成功。
+4. 浏览器直接打开 `frontend/index.html`（后端已配跨域）。
 
-## 登录流程
+## 登录说明
 
-`POST /user/code?phone=你的邮箱` 获取验证码 → `POST /user/login`（body: `{"phone": "...", "code": "..."}`）登录。
+用邮箱验证码登录。点「发验证码」后邮件发不出去是正常的，验证码在后端日志里：Mac/Linux 用 `grep '发送登录验证码' 日志 | tail -1`，Windows 用 PowerShell `Select-String`。token 30 分钟有效，存浏览器 localStorage。
 
-- 没配发件邮箱时，`/user/code` 仍返回成功，验证码打印在控制台日志并写入 Redis：
-  `redis-cli -n 6 get "login:code:<你的邮箱>"`
-- 配了 `hmdp.mail.user` / `hmdp.mail.password`（QQ 邮箱 SMTP 授权码，邮箱设置 → 账户 → 开启 SMTP 获取）
-  才会真正发邮件。
+## 相对原项目的改动
 
-## 相对原仓库的修复
+邮箱验证码登录；`tb_user.phone` 加宽到 varchar(64)；邮箱正则允许带点；新增 CorsConfig；LoginInterceptor 放行 OPTIONS 预检；`/blog/{id}` 加入登录放行名单；MySQL 驱动 8.0.33；RabbitMQ 改 localhost:5672；tb_seckill_voucher 去零日期默认值；邮件发送失败只记日志；上传目录改跨平台相对路径；删 nginx 目录和重复 Lombok。
 
-| # | 问题 | 修复 |
-|---|---|---|
-| 1 | `pom.xml` 里 MySQL 驱动写死 5.1.47，连不上 MySQL 8/9（`caching_sha2_password` 鉴权不支持） | 升级到 8.0.33，驱动类改为 `com.mysql.cj.jdbc.Driver` |
-| 2 | `application.yaml` 里 RabbitMQ 指向作者的虚拟机 `192.168.88.128`，且端口写成 `15672`（那是管理界面端口，AMQP 协议要用 `5672`），启动连不上 | 改为 `localhost:5672`，`guest/guest` |
-| 3 | `MailUtils.java` 硬编码了作者的 QQ 邮箱和 SMTP 授权码（已失效，且是敏感信息） | 改为从 `application.yaml` 的 `hmdp.mail` 读取；未配置时抛明确异常 |
-| 4 | 邮件发送失败会导致 `/user/code` 直接 500 | 发送失败只记 warn 日志，验证码已在 Redis，接口正常返回 |
-| 5 | `db/hmdp.sql` 里 `tb_seckill_voucher` 用 `timestamp DEFAULT '0000-00-00 00:00:00'`，新版 MySQL 严格模式下建表失败 | 改为 `DEFAULT CURRENT_TIMESTAMP` |
-| 6 | `nginx-1.18.0/` 是 Windows 版 nginx 且 html 里只有默认页面，真正的 hmdp 前端页面不在仓库里 | 删除；先用 Postman/curl 直接调 API |
+## 测试建议
 
-## 技术栈
-
-| 技术 | 说明 |
-|---|---|
-| SpringBoot 2.3.12 | 容器+MVC框架 |
-| Redis（≥6.2） | 分布式缓存；GEOSEARCH（附近商家）需要 6.2+ |
-| RabbitMQ | 秒杀异步下单，削峰 |
-| MySQL | 关系型数据库 |
-| MyBatis-Plus / Lombok / Hutool / Redisson | 常规组件 |
+首页 10 个分类（「美食」9 家、「KTV」5 家，其余种子数据为空属正常）；商户详情→优惠券；探店→博客详情→点赞（需登录）；我的→签到/退出。秒杀需先 `POST /voucher/seckill` 建券再抢购。
